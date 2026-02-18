@@ -1,55 +1,75 @@
-# Dual N-Back
+# Dual N-Back (macOS Swift App)
 
-This repo has two tracks:
+A native macOS Dual N-Back training app built with SwiftUI.
 
-1. `main`: Python/Tkinter baseline (`dual_n_back.py`)
-2. `codex/swift-prototype`: native macOS SwiftUI app (`SwiftDualNBackPrototype`)
+## What Dual N-Back Is
+Dual N-Back is a working-memory training task where you track two streams at once:
+- a **visual position** (highlighted square)
+- an **auditory letter** (spoken letter)
 
-## Swift Prototype Rules (Implemented)
+On each trial, you decide whether the current visual and/or auditory stimulus matches the one from **N trials ago**.
 
-The Swift app follows these rules:
+## How This App Works
 
-1. Board layout: 8 positions only (3x3 ring, no center square).
-2. Stimulus timing: visual square + auditory letter start together for 500 ms.
-3. Inter-stimulus gap: 2,500 ms.
-4. Total trial pacing: 3,000 ms per trial (500 ms on + 2,500 ms gap).
-5. Dual comparison rule: each trial compares current position and letter to the stimuli `n` trials back.
-6. Response mapping:
-   - `F`: visual match hit.
-   - `J`: auditory match hit.
-   - If both match, press both (`F` and `J`).
-   - No response is required for non-matches.
-7. Session length: `20 + n` trials.
-8. Target mix per session (planned):
-   - ~4 visual-only matches
-   - ~4 auditory-only matches
-   - ~2 simultaneous visual+auditory matches
-   - Remaining are non-match trials
-9. Adaptive leveling:
-   - Compute visual and auditory accuracy separately.
-   - Use average of modality accuracies for level adjustment.
-   - `>= 90%`: increase `n`
-   - `75% to <90%`: keep `n`
-   - `<75%`: decrease `n` (minimum 1)
-10. Scoring types tracked per modality:
-   - True Positive (TP)
-   - False Positive (FP)
-   - Miss
-11. Letter pool: `B F H J K L Q R`.
+### Stimulus design
+- 8 visual positions arranged in a 3x3 ring (center square is not used)
+- Auditory letters are drawn from: `B F H J K L Q R`
+- Visual and audio start together for each trial
 
-## Running the Swift app
+### Timing
+- Stimulus on-screen time: **500 ms**
+- Gap before next trial: **2500 ms**
+- Total pacing: **3000 ms per trial**
+- 3-second spoken countdown before a session starts
 
-Open in one click:
-- `/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/OPEN_XCODE.command`
+### Session length
+- Trials per session: **20 + N**
 
-Or directly open:
-- `/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/SwiftDualNBackPrototype.xcodeproj`
+### Match composition per session
+The generator plans approximately:
+- 4 visual-only matches
+- 4 auditory-only matches
+- 2 simultaneous visual+auditory matches
+- remaining trials are non-matches
 
-In Xcode:
-1. Select scheme `SwiftDualNBackPrototype`
-2. Target `My Mac`
-3. Run (`Cmd+R`)
+### Scoring tracked per modality
+- True Positive (TP)
+- Miss
+- False Positive (FP)
 
-## Note on warnings fixed
+Accuracy is computed separately for visual and auditory; misses and false alarms are treated as errors.
 
-The two MainActor warnings were addressed by routing timer closure callbacks back onto the main actor before mutating UI/game state.
+### Adaptive leveling
+After each session, the app adjusts N based on average modality accuracy:
+- **>= 90%**: increase N
+- **75% to < 90%**: keep N
+- **< 75%**: decrease N (minimum 1)
+
+## Controls
+- `F` key or **Visual Match** button: register visual match
+- `J` key or **Auditory Match** button: register auditory match
+- If both modalities match, register both
+- No response is needed for non-matches
+
+## Audio quality approach
+The app pre-generates spoken-letter clips at session start (using macOS voices) and reuses them during trials for lower latency and more consistent timing.
+
+## Open and run
+
+### One click
+- Double-click:
+`/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/OPEN_XCODE.command`
+
+### Or directly in Xcode
+1. Open:
+`/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/SwiftDualNBackPrototype.xcodeproj`
+2. Select scheme: `SwiftDualNBackPrototype`
+3. Target: `My Mac`
+4. Run: `Cmd+R`
+
+## Project structure
+- `SwiftDualNBackPrototype/` - native app source and Xcode project
+- `LICENSE` - MIT license
+
+## Status
+Swift is the primary and active implementation on `main`.
