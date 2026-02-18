@@ -12,9 +12,12 @@ final class GameEngine: ObservableObject {
 
     @Published var nLevel: Int = 2
     @Published var isRunning = false
+    @Published var isPreparingStart = false
     @Published var trialIndex = -1
     @Published var currentPosition: Int? = nil // 0...7 ring index
     @Published var statusText = "Press Start to begin"
+    @Published var visualButtonActive = false
+    @Published var audioButtonActive = false
 
     @Published var posHits = 0
     @Published var posMisses = 0
@@ -29,6 +32,7 @@ final class GameEngine: ObservableObject {
 
     private var cycleTimer: Timer?
     private var hideTimer: Timer?
+    private var countdownWorkItems: [DispatchWorkItem] = []
 
     private let speech = AVSpeechSynthesizer()
 
@@ -42,7 +46,7 @@ final class GameEngine: ObservableObject {
     }
 
     func start() {
-        if isRunning { return }
+        if isRunning || isPreparingStart { return }
         if nLevel < 1 { nLevel = 1 }
 
         guard buildTrialPlan() else {
@@ -50,7 +54,8 @@ final class GameEngine: ObservableObject {
             return
         }
 
-        isRunning = true
+        isRunning = false
+        isPreparingStart = true
         trialIndex = -1
         responses = []
         awaitingResponseFor = nil
@@ -63,32 +68,31 @@ final class GameEngine: ObservableObject {
         audMisses = 0
         audFalse = 0
 
-        statusText = "Game running. Trial pacing is fixed at 3.0s (0.5s on, 2.5s gap)."
-
-        runTrial()
-        cycleTimer = Timer.scheduledTimer(withTimeInterval: cycleSeconds, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.runTrial()
-            }
-        }
+        statusText = "Get ready..."
+        beginCountdownAndStart()
     }
 
     func stop() {
         cycleTimer?.invalidate()
         hideTimer?.invalidate()
+        clearCountdown()
+        speech.stopSpeaking(at: .immediate)
         cycleTimer = nil
         hideTimer = nil
         currentPosition = nil
         isRunning = false
+        isPreparingStart = false
     }
 
-    func registerPositionKey() {
+    func registerPositionAction() {
         guard isRunning, let idx = awaitingResponseFor else { return }
+        flashVisualButton()
         responses[idx].pos = true
     }
 
-    func registerAudioKey() {
+    func registerAudioAction() {
         guard isRunning, let idx = awaitingResponseFor else { return }
+        flashAudioButton()
         responses[idx].aud = true
     }
 
@@ -120,6 +124,48 @@ final class GameEngine: ObservableObject {
                 self?.currentPosition = nil
             }
         }
+    }
+
+    private func beginCountdownAndStart() {
+        clearCountdown()
+
+        // Warm speech engine slightly so first trial audio starts promptly.
+        let warmup = AVSpeechUtterance(string: ".")
+        warmup.volume = 0.0
+        warmup.rate = 0.52
+        speech.speak(warmup)
+        speech.stopSpeaking(at: .immediate)
+
+        let countdown = [3, 2, 1]
+        for (offset, value) in countdown.enumerated() {
+            let item = DispatchWorkItem { [weak self] in
+                guard let self, self.isPreparingStart else { return }
+                self.statusText = "Starting in \(value)..."
+                self.speakCountdown(value)
+            }
+            countdownWorkItems.append(item)
+            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(offset), execute: item)
+        }
+
+        let startItem = DispatchWorkItem { [weak self] in
+            guard let self, self.isPreparingStart else { return }
+            self.isPreparingStart = false
+            self.isRunning = true
+            self.statusText = "Game running. Trial pacing is fixed at 3.0s (0.5s on, 2.5s gap)."
+            self.runTrial()
+            self.cycleTimer = Timer.scheduledTimer(withTimeInterval: self.cycleSeconds, repeats: true) { [weak self] _ in
+                Task { @MainActor in
+                    self?.runTrial()
+                }
+            }
+        }
+        countdownWorkItems.append(startItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3), execute: startItem)
+    }
+
+    private func clearCountdown() {
+        countdownWorkItems.forEach { $0.cancel() }
+        countdownWorkItems.removeAll()
     }
 
     private func buildTrialPlan() -> Bool {
@@ -175,19 +221,56 @@ final class GameEngine: ObservableObject {
         return true
     }
 
+    private func speakCountdown(_ value: Int) {
+        speech.stopSpeaking(at: .immediate)
+        let utterance = AVSpeechUtterance(string: "\(value)")
+        utterance.rate = 0.5
+        utterance.pitchMultiplier = 1.0
+        utterance.voice = preferredVoice()
+        speech.speak(utterance)
+    }
+
     private func speak(letter: Character) {
         speech.stopSpeaking(at: .immediate)
         let utterance = AVSpeechUtterance(string: String(letter).lowercased())
-        utterance.rate = 0.47
-        utterance.pitchMultiplier = 1.0
-        if let preferred = AVSpeechSynthesisVoice(identifier: "com.apple.voice.enhanced.en-US.Ava") {
-            utterance.voice = preferred
-        } else if let preferred = AVSpeechSynthesisVoice(identifier: "com.apple.voice.compact.en-US.Samantha") {
-            utterance.voice = preferred
-        } else {
-            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        }
+        utterance.rate = 0.5
+        utterance.pitchMultiplier = 1.05
+        utterance.voice = preferredVoice()
         speech.speak(utterance)
+    }
+
+    private func preferredVoice() -> AVSpeechSynthesisVoice? {
+        if #available(macOS 13.0, *) {
+            let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "en-US" }
+            if let enhanced = voices.first(where: { $0.quality == .enhanced }) {
+                return enhanced
+            }
+        }
+        if let ava = AVSpeechSynthesisVoice(identifier: "com.apple.voice.enhanced.en-US.Ava") {
+            return ava
+        }
+        if let samantha = AVSpeechSynthesisVoice(identifier: "com.apple.voice.compact.en-US.Samantha") {
+            return samantha
+        }
+        return AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    private func flashVisualButton() {
+        visualButtonActive = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            Task { @MainActor in
+                self?.visualButtonActive = false
+            }
+        }
+    }
+
+    private func flashAudioButton() {
+        audioButtonActive = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            Task { @MainActor in
+                self?.audioButtonActive = false
+            }
+        }
     }
 
     private func grade(trial idx: Int) {
@@ -290,14 +373,36 @@ struct ContentView: View {
             .padding(.vertical, 6)
 
             HStack(spacing: 12) {
-                Button(game.isRunning ? "Running" : "Start") {
+                Button(game.isRunning || game.isPreparingStart ? "Running" : "Start") {
                     game.start()
                 }
-                .disabled(game.isRunning)
+                .disabled(game.isRunning || game.isPreparingStart)
 
                 Button("Stop") {
                     game.stop()
                 }
+                .disabled(!game.isRunning && !game.isPreparingStart)
+            }
+
+            HStack(spacing: 12) {
+                Button {
+                    game.registerPositionAction()
+                } label: {
+                    Label("Visual Match (F)", systemImage: "square.grid.3x3.fill")
+                        .frame(minWidth: 190)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(game.visualButtonActive ? .orange : .accentColor)
+                .disabled(!game.isRunning)
+
+                Button {
+                    game.registerAudioAction()
+                } label: {
+                    Label("Auditory Match (J)", systemImage: "speaker.wave.2.fill")
+                        .frame(minWidth: 190)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(game.audioButtonActive ? .orange : .accentColor)
                 .disabled(!game.isRunning)
             }
 
@@ -315,11 +420,11 @@ struct ContentView: View {
             Spacer(minLength: 0)
         }
         .padding(20)
-        .frame(minWidth: 760, minHeight: 760)
+        .frame(idealWidth: 760, idealHeight: 760)
         .background(
             KeyCaptureView(
-                onF: { game.registerPositionKey() },
-                onJ: { game.registerAudioKey() }
+                onF: { game.registerPositionAction() },
+                onJ: { game.registerAudioAction() }
             )
         )
     }
@@ -380,6 +485,6 @@ struct DualNBackPrototypeApp: App {
         WindowGroup {
             ContentView()
         }
-        .windowResizability(.contentSize)
+        .windowResizability(.automatic)
     }
 }
