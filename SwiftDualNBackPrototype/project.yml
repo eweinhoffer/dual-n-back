@@ -1,0 +1,30 @@
+name: SwiftDualNBackPrototype
+options:
+  minimumXcodeGenVersion: 2.37.0
+  deploymentTarget:
+    macOS: "13.0"
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.eweinhoffer.SwiftDualNBackPrototype
+    SWIFT_VERSION: 5.10
+targets:
+  SwiftDualNBackPrototype:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/SwiftDualNBackPrototype
+    settings:
+      base:
+        PRODUCT_NAME: SwiftDualNBackPrototype
+        GENERATE_INFOPLIST_FILE: YES
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: NO
+schemes:
+  SwiftDualNBackPrototype:
+    build:
+      targets:
+        SwiftDualNBackPrototype: all
+    run:
+      config: Debug

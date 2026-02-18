@@ -1,6 +1,6 @@
 # Dual N-Back
 
-This repo now has two implementation tracks:
+This repo has two implementation tracks:
 
 1. `main`: Python/Tkinter baseline (`dual_n_back.py`)
 2. `codex/swift-prototype`: native macOS SwiftUI prototype (`SwiftDualNBackPrototype/`)
@@ -22,18 +22,16 @@ Controls:
 ## Swift prototype (native macOS)
 
 Folder:
-- `SwiftDualNBackPrototype`
+- `/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype`
+
+One-click open in Xcode:
+- Double-click `/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/OPEN_XCODE.command`
+- Or double-click `/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/SwiftDualNBackPrototype.xcodeproj`
 
 Tech stack:
 - SwiftUI for UI
 - AVFoundation speech for spoken letters
 - AppKit key event monitor for `F`/`J`
-
-Run:
-```bash
-cd SwiftDualNBackPrototype
-swift run
-```
 
 Current prototype features:
 - 3x3 visual grid with flashed position stimulus
