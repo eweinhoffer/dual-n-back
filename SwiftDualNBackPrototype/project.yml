@@ -5,7 +5,7 @@ options:
     macOS: "13.0"
 settings:
   base:
-    PRODUCT_BUNDLE_IDENTIFIER: com.eweinhoffer.SwiftDualNBackPrototype
+    PRODUCT_BUNDLE_IDENTIFIER: io.dualnback.SwiftDualNBackPrototype
     SWIFT_VERSION: 5.10
 targets:
   SwiftDualNBackPrototype:

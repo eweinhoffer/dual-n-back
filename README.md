@@ -58,11 +58,11 @@ The app pre-generates spoken-letter clips at session start (using macOS voices) 
 
 ### One click
 - Double-click:
-`/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/OPEN_XCODE.command`
+`SwiftDualNBackPrototype/OPEN_XCODE.command`
 
 ### Or directly in Xcode
 1. Open:
-`/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/SwiftDualNBackPrototype.xcodeproj`
+`SwiftDualNBackPrototype/SwiftDualNBackPrototype.xcodeproj`
 2. Select scheme: `SwiftDualNBackPrototype`
 3. Target: `My Mac`
 4. Run: `Cmd+R`
