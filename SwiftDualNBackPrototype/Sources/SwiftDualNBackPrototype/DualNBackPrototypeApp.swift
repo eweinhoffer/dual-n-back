@@ -1,11 +1,12 @@
 import AppKit
 import AVFoundation
+import Foundation
 import SwiftUI
 
 @MainActor
 final class GameEngine: ObservableObject {
     private let playableGridIndices = [0, 1, 2, 3, 5, 6, 7, 8]
-    private let letterPool: [Character] = Array("BFJKLTV")
+    private let letterPool: [Character] = Array("BFHJKLQR")
 
     private let stimulusOnSeconds: TimeInterval = 0.5
     private let cycleSeconds: TimeInterval = 3.0
@@ -34,6 +35,11 @@ final class GameEngine: ObservableObject {
     private var hideTimer: Timer?
     private var countdownWorkItems: [DispatchWorkItem] = []
 
+    private var selectedVoiceName = "Samantha"
+    private var letterPlayers: [Character: AVAudioPlayer] = [:]
+    private let speechCacheDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("dual-n-back-voice-cache", isDirectory: true)
+
     private let speech = AVSpeechSynthesizer()
 
     var totalTrials: Int {
@@ -53,6 +59,7 @@ final class GameEngine: ObservableObject {
             statusText = "Could not build valid trial plan for this N"
             return
         }
+        prepareLetterAudioCache()
 
         isRunning = false
         isPreparingStart = true
@@ -77,6 +84,7 @@ final class GameEngine: ObservableObject {
         hideTimer?.invalidate()
         clearCountdown()
         speech.stopSpeaking(at: .immediate)
+        letterPlayers.values.forEach { $0.stop() }
         cycleTimer = nil
         hideTimer = nil
         currentPosition = nil
@@ -231,6 +239,13 @@ final class GameEngine: ObservableObject {
     }
 
     private func speak(letter: Character) {
+        if let player = letterPlayers[letter] {
+            player.stop()
+            player.currentTime = 0
+            player.play()
+            return
+        }
+
         speech.stopSpeaking(at: .immediate)
         let utterance = AVSpeechUtterance(string: String(letter).lowercased())
         utterance.rate = 0.5
@@ -253,6 +268,90 @@ final class GameEngine: ObservableObject {
             return samantha
         }
         return AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    private func prepareLetterAudioCache() {
+        letterPlayers = [:]
+        selectedVoiceName = resolvePreferredVoiceName()
+
+        do {
+            try FileManager.default.createDirectory(
+                at: speechCacheDir,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            return
+        }
+
+        for letter in letterPool {
+            let fileURL = speechCacheDir.appendingPathComponent("\(letter).aiff")
+            if !synthesizeLetterToFile(letter: letter, outputURL: fileURL) {
+                continue
+            }
+            do {
+                let player = try AVAudioPlayer(contentsOf: fileURL)
+                player.prepareToPlay()
+                letterPlayers[letter] = player
+            } catch {
+                continue
+            }
+        }
+    }
+
+    private func synthesizeLetterToFile(letter: Character, outputURL: URL) -> Bool {
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            try? FileManager.default.removeItem(at: outputURL)
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+        process.arguments = [
+            "-v", selectedVoiceName,
+            "-r", "185",
+            "-o", outputURL.path,
+            "--",
+            String(letter).lowercased(),
+        ]
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    private func resolvePreferredVoiceName() -> String {
+        let available = availableSayVoices()
+        let preferredOrder = ["Ava", "Samantha", "Allison", "Nora", "Karen", "Moira"]
+        if let match = preferredOrder.first(where: { available.contains($0) }) {
+            return match
+        }
+        return available.first ?? "Samantha"
+    }
+
+    private func availableSayVoices() -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+        process.arguments = ["-v", "?"]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return []
+        }
+
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        guard let text = String(data: data, encoding: .utf8) else { return [] }
+        return text
+            .split(separator: "\n")
+            .compactMap { line in
+                line.split(whereSeparator: \.isWhitespace).first.map(String.init)
+            }
     }
 
     private func flashVisualButton() {

@@ -35,7 +35,7 @@ The Swift app follows these rules:
    - True Positive (TP)
    - False Positive (FP)
    - Miss
-11. Letter pool: `B F J K L T V` (the set provided in requirements).
+11. Letter pool: `B F H J K L Q R`.
 
 ## Running the Swift app
 
