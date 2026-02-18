@@ -7,18 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		97A73182443ED023BC8156CE /* DualNBackPrototypeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED658EF0A7C49F4A48C53A69 /* DualNBackPrototypeApp.swift */; };
 		F64ADD6428286394A0CD55FA /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD968DB2CBDA4003AF1B9A4C /* main.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A03981288942D4CA639F4AEC /* SwiftDualNBackPrototype.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftDualNBackPrototype.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DD968DB2CBDA4003AF1B9A4C /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		ED658EF0A7C49F4A48C53A69 /* DualNBackPrototypeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DualNBackPrototypeApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		15D5931660BBC75B3415A1A1 /* SwiftDualNBackPrototype */ = {
 			isa = PBXGroup;
 			children = (
+				ED658EF0A7C49F4A48C53A69 /* DualNBackPrototypeApp.swift */,
 				DD968DB2CBDA4003AF1B9A4C /* main.swift */,
 			);
 			name = SwiftDualNBackPrototype;
@@ -100,6 +103,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				97A73182443ED023BC8156CE /* DualNBackPrototypeApp.swift in Sources */,
 				F64ADD6428286394A0CD55FA /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

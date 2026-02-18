@@ -1,47 +1,55 @@
 # Dual N-Back
 
-This repo has two implementation tracks:
+This repo has two tracks:
 
 1. `main`: Python/Tkinter baseline (`dual_n_back.py`)
-2. `codex/swift-prototype`: native macOS SwiftUI prototype (`SwiftDualNBackPrototype/`)
+2. `codex/swift-prototype`: native macOS SwiftUI app (`SwiftDualNBackPrototype`)
 
-## Python baseline
+## Swift Prototype Rules (Implemented)
 
-File:
-- `dual_n_back.py`
+The Swift app follows these rules:
 
-Run:
-```bash
-python3 dual_n_back.py
-```
+1. Board layout: 8 positions only (3x3 ring, no center square).
+2. Stimulus timing: visual square + auditory letter start together for 500 ms.
+3. Inter-stimulus gap: 2,500 ms.
+4. Total trial pacing: 3,000 ms per trial (500 ms on + 2,500 ms gap).
+5. Dual comparison rule: each trial compares current position and letter to the stimuli `n` trials back.
+6. Response mapping:
+   - `F`: visual match hit.
+   - `J`: auditory match hit.
+   - If both match, press both (`F` and `J`).
+   - No response is required for non-matches.
+7. Session length: `20 + n` trials.
+8. Target mix per session (planned):
+   - ~4 visual-only matches
+   - ~4 auditory-only matches
+   - ~2 simultaneous visual+auditory matches
+   - Remaining are non-match trials
+9. Adaptive leveling:
+   - Compute visual and auditory accuracy separately.
+   - Use average of modality accuracies for level adjustment.
+   - `>= 90%`: increase `n`
+   - `75% to <90%`: keep `n`
+   - `<75%`: decrease `n` (minimum 1)
+10. Scoring types tracked per modality:
+   - True Positive (TP)
+   - False Positive (FP)
+   - Miss
+11. Letter pool: `B F J K L T V` (the set provided in requirements).
 
-Controls:
-- `F` = position match
-- `J` = auditory match
+## Running the Swift app
 
-## Swift prototype (native macOS)
+Open in one click:
+- `/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/OPEN_XCODE.command`
 
-Folder:
-- `/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype`
+Or directly open:
+- `/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/SwiftDualNBackPrototype.xcodeproj`
 
-One-click open in Xcode:
-- Double-click `/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/OPEN_XCODE.command`
-- Or double-click `/Users/nateric/Documents/Custom Apps/Brain Games/Dual N-Back/SwiftDualNBackPrototype/SwiftDualNBackPrototype.xcodeproj`
+In Xcode:
+1. Select scheme `SwiftDualNBackPrototype`
+2. Target `My Mac`
+3. Run (`Cmd+R`)
 
-Tech stack:
-- SwiftUI for UI
-- AVFoundation speech for spoken letters
-- AppKit key event monitor for `F`/`J`
+## Note on warnings fixed
 
-Current prototype features:
-- 3x3 visual grid with flashed position stimulus
-- spoken letter stream for auditory stimulus
-- configurable N, trials, stimulus duration, cycle duration
-- dual response tracking (hits/misses/false alarms)
-- keyboard controls:
-  - `F` for position match
-  - `J` for auditory-letter match
-
-## Why move to Swift
-
-For macOS, Swift removes Python interpreter/Tk backend fragility and gives a cleaner path for tightly synchronized audio + visual + keyboard interaction.
+The two MainActor warnings were addressed by routing timer closure callbacks back onto the main actor before mutating UI/game state.
