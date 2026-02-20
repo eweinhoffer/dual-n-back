@@ -7,11 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		66E92DC66012E8242A7F1C2B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 98A72CAC9016BC2D64AA9EEE /* Assets.xcassets */; };
 		97A73182443ED023BC8156CE /* DualNBackPrototypeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED658EF0A7C49F4A48C53A69 /* DualNBackPrototypeApp.swift */; };
 		F64ADD6428286394A0CD55FA /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD968DB2CBDA4003AF1B9A4C /* main.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		98A72CAC9016BC2D64AA9EEE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A03981288942D4CA639F4AEC /* SwiftDualNBackPrototype.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftDualNBackPrototype.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DD968DB2CBDA4003AF1B9A4C /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		ED658EF0A7C49F4A48C53A69 /* DualNBackPrototypeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DualNBackPrototypeApp.swift; sourceTree = "<group>"; };
@@ -21,6 +23,7 @@
 		15D5931660BBC75B3415A1A1 /* SwiftDualNBackPrototype */ = {
 			isa = PBXGroup;
 			children = (
+				98A72CAC9016BC2D64AA9EEE /* Assets.xcassets */,
 				ED658EF0A7C49F4A48C53A69 /* DualNBackPrototypeApp.swift */,
 				DD968DB2CBDA4003AF1B9A4C /* main.swift */,
 			);
@@ -52,6 +55,7 @@
 			buildConfigurationList = 65BCEBAA3A9B11AE11393AF5 /* Build configuration list for PBXNativeTarget "SwiftDualNBackPrototype" */;
 			buildPhases = (
 				B9555AD2B7CCF1DAC9B6D13F /* Sources */,
+				F02F423BAE192E0487361E03 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -97,6 +101,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F02F423BAE192E0487361E03 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				66E92DC66012E8242A7F1C2B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B9555AD2B7CCF1DAC9B6D13F /* Sources */ = {
@@ -182,7 +197,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = "";
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -258,7 +273,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = "";
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

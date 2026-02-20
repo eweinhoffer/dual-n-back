@@ -4,9 +4,19 @@ import Foundation
 import SwiftUI
 
 @MainActor
-final class GameEngine: ObservableObject {
+final class GameEngine: NSObject, ObservableObject {
     private let playableGridIndices = [0, 1, 2, 3, 5, 6, 7, 8]
     private let letterPool: [Character] = Array("BFHJKLQR")
+    private lazy var positionAlternatives: [[Int]] = {
+        (0..<playableGridIndices.count).map { index in
+            (0..<playableGridIndices.count).filter { $0 != index }
+        }
+    }()
+    private lazy var letterAlternatives: [Character: [Character]] = {
+        Dictionary(uniqueKeysWithValues: letterPool.map { letter in
+            (letter, letterPool.filter { $0 != letter })
+        })
+    }()
 
     private let stimulusOnSeconds: TimeInterval = 0.5
     private let cycleSeconds: TimeInterval = 3.0
@@ -17,6 +27,9 @@ final class GameEngine: ObservableObject {
     @Published var trialIndex = -1
     @Published var currentPosition: Int? = nil // 0...7 ring index
     @Published var statusText = "Press Start to begin"
+    @Published var didCompleteSession = false
+    @Published var resultSummaryText = ""
+    @Published var showResultPopup = false
     @Published var visualButtonActive = false
     @Published var audioButtonActive = false
 
@@ -35,12 +48,13 @@ final class GameEngine: ObservableObject {
     private var hideTimer: Timer?
     private var countdownWorkItems: [DispatchWorkItem] = []
 
-    private var selectedVoiceName = "Samantha"
-    private var letterPlayers: [Character: AVAudioPlayer] = [:]
-    private let speechCacheDir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("dual-n-back-voice-cache", isDirectory: true)
-
     private let speech = AVSpeechSynthesizer()
+    private let speechRate: Float = 0.47
+    private lazy var preferredSpeechVoice: AVSpeechSynthesisVoice? = resolvePreferredVoice()
+
+    override init() {
+        super.init()
+    }
 
     var totalTrials: Int {
         20 + nLevel
@@ -59,14 +73,15 @@ final class GameEngine: ObservableObject {
             statusText = "Could not build valid trial plan for this N"
             return
         }
-        prepareLetterAudioCache()
-
         isRunning = false
         isPreparingStart = true
+        showResultPopup = false
         trialIndex = -1
         responses = []
         awaitingResponseFor = nil
         currentPosition = nil
+        didCompleteSession = false
+        resultSummaryText = ""
 
         posHits = 0
         posMisses = 0
@@ -84,7 +99,6 @@ final class GameEngine: ObservableObject {
         hideTimer?.invalidate()
         clearCountdown()
         speech.stopSpeaking(at: .immediate)
-        letterPlayers.values.forEach { $0.stop() }
         cycleTimer = nil
         hideTimer = nil
         currentPosition = nil
@@ -128,7 +142,7 @@ final class GameEngine: ObservableObject {
 
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: stimulusOnSeconds, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+            DispatchQueue.main.async {
                 self?.currentPosition = nil
             }
         }
@@ -136,13 +150,6 @@ final class GameEngine: ObservableObject {
 
     private func beginCountdownAndStart() {
         clearCountdown()
-
-        // Warm speech engine slightly so first trial audio starts promptly.
-        let warmup = AVSpeechUtterance(string: ".")
-        warmup.volume = 0.0
-        warmup.rate = 0.52
-        speech.speak(warmup)
-        speech.stopSpeaking(at: .immediate)
 
         let countdown = [3, 2, 1]
         for (offset, value) in countdown.enumerated() {
@@ -162,10 +169,11 @@ final class GameEngine: ObservableObject {
             self.statusText = "Game running. Trial pacing is fixed at 3.0s (0.5s on, 2.5s gap)."
             self.runTrial()
             self.cycleTimer = Timer.scheduledTimer(withTimeInterval: self.cycleSeconds, repeats: true) { [weak self] _ in
-                Task { @MainActor in
+                DispatchQueue.main.async {
                     self?.runTrial()
                 }
             }
+            self.cycleTimer?.tolerance = 0.02
         }
         countdownWorkItems.append(startItem)
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3), execute: startItem)
@@ -213,14 +221,14 @@ final class GameEngine: ObservableObject {
             if posShouldMatch {
                 positions[idx] = backPosition
             } else {
-                let choices = (0..<playableGridIndices.count).filter { $0 != backPosition }
+                let choices = positionAlternatives[backPosition]
                 positions[idx] = choices.randomElement() ?? ((backPosition + 1) % playableGridIndices.count)
             }
 
             if audShouldMatch {
                 letters[idx] = backLetter
             } else {
-                let choices = letterPool.filter { $0 != backLetter }
+                let choices = letterAlternatives[backLetter] ?? letterPool
                 letters[idx] = choices.randomElement() ?? backLetter
             }
         }
@@ -230,33 +238,29 @@ final class GameEngine: ObservableObject {
     }
 
     private func speakCountdown(_ value: Int) {
-        speech.stopSpeaking(at: .immediate)
         let utterance = AVSpeechUtterance(string: "\(value)")
-        utterance.rate = 0.5
+        utterance.prefersAssistiveTechnologySettings = true
+        utterance.rate = speechRate
         utterance.pitchMultiplier = 1.0
-        utterance.voice = preferredVoice()
+        utterance.voice = preferredSpeechVoice
         speech.speak(utterance)
     }
 
     private func speak(letter: Character) {
-        if let player = letterPlayers[letter] {
-            player.stop()
-            player.currentTime = 0
-            player.play()
-            return
-        }
-
-        speech.stopSpeaking(at: .immediate)
         let utterance = AVSpeechUtterance(string: String(letter).lowercased())
-        utterance.rate = 0.5
-        utterance.pitchMultiplier = 1.05
-        utterance.voice = preferredVoice()
+        utterance.prefersAssistiveTechnologySettings = true
+        utterance.rate = speechRate
+        utterance.pitchMultiplier = 1.0
+        utterance.voice = preferredSpeechVoice
         speech.speak(utterance)
     }
 
-    private func preferredVoice() -> AVSpeechSynthesisVoice? {
+    private func resolvePreferredVoice() -> AVSpeechSynthesisVoice? {
+        let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "en-US" }
         if #available(macOS 13.0, *) {
-            let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "en-US" }
+            if let premium = voices.first(where: { $0.quality == .premium }) {
+                return premium
+            }
             if let enhanced = voices.first(where: { $0.quality == .enhanced }) {
                 return enhanced
             }
@@ -270,105 +274,17 @@ final class GameEngine: ObservableObject {
         return AVSpeechSynthesisVoice(language: "en-US")
     }
 
-    private func prepareLetterAudioCache() {
-        letterPlayers = [:]
-        selectedVoiceName = resolvePreferredVoiceName()
-
-        do {
-            try FileManager.default.createDirectory(
-                at: speechCacheDir,
-                withIntermediateDirectories: true
-            )
-        } catch {
-            return
-        }
-
-        for letter in letterPool {
-            let fileURL = speechCacheDir.appendingPathComponent("\(letter).aiff")
-            if !synthesizeLetterToFile(letter: letter, outputURL: fileURL) {
-                continue
-            }
-            do {
-                let player = try AVAudioPlayer(contentsOf: fileURL)
-                player.prepareToPlay()
-                letterPlayers[letter] = player
-            } catch {
-                continue
-            }
-        }
-    }
-
-    private func synthesizeLetterToFile(letter: Character, outputURL: URL) -> Bool {
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try? FileManager.default.removeItem(at: outputURL)
-        }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-        process.arguments = [
-            "-v", selectedVoiceName,
-            "-r", "185",
-            "-o", outputURL.path,
-            "--",
-            String(letter).lowercased(),
-        ]
-        do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
-    }
-
-    private func resolvePreferredVoiceName() -> String {
-        let available = availableSayVoices()
-        let preferredOrder = ["Ava", "Samantha", "Allison", "Nora", "Karen", "Moira"]
-        if let match = preferredOrder.first(where: { available.contains($0) }) {
-            return match
-        }
-        return available.first ?? "Samantha"
-    }
-
-    private func availableSayVoices() -> [String] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-        process.arguments = ["-v", "?"]
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = Pipe()
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return []
-        }
-
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        guard let text = String(data: data, encoding: .utf8) else { return [] }
-        return text
-            .split(separator: "\n")
-            .compactMap { line in
-                line.split(whereSeparator: \.isWhitespace).first.map(String.init)
-            }
-    }
-
     private func flashVisualButton() {
         visualButtonActive = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            Task { @MainActor in
-                self?.visualButtonActive = false
-            }
+            self?.visualButtonActive = false
         }
     }
 
     private func flashAudioButton() {
         audioButtonActive = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            Task { @MainActor in
-                self?.audioButtonActive = false
-            }
+            self?.audioButtonActive = false
         }
     }
 
@@ -409,7 +325,7 @@ final class GameEngine: ObservableObject {
             nLevel = max(1, nLevel - 1)
         }
 
-        statusText = String(
+        let resultText = String(
             format: "Finished. Visual %.1f%%, Audio %.1f%%, Avg %.1f%%. N: %d -> %d",
             posAccuracy,
             audAccuracy,
@@ -417,6 +333,10 @@ final class GameEngine: ObservableObject {
             oldN,
             nLevel
         )
+        resultSummaryText = resultText
+        statusText = resultText
+        didCompleteSession = true
+        showResultPopup = true
     }
 
     private func accuracyPercent(hits: Int, misses: Int, falsePositives: Int) -> Double {
@@ -428,6 +348,9 @@ final class GameEngine: ObservableObject {
 
 struct ContentView: View {
     @StateObject private var game = GameEngine()
+    @State private var showHelp = false
+    @State private var showSettings = false
+    @State private var visualHighlightColor: Color = .orange
 
     var body: some View {
         VStack(spacing: 14) {
@@ -442,6 +365,12 @@ struct ContentView: View {
                 Stepper("N: \(game.nLevel)", value: $game.nLevel, in: 1...8)
                 Text("Trials this session: \(game.totalTrials)")
                     .font(.callout)
+                Button("Help") {
+                    showHelp = true
+                }
+                Button("Settings") {
+                    showSettings = true
+                }
             }
 
             Text("Timing is fixed: 500ms stimulus + 2500ms gap (3s total pacing)")
@@ -458,7 +387,7 @@ struct ContentView: View {
                                     .frame(width: 96, height: 96)
                             } else {
                                 RoundedRectangle(cornerRadius: 10)
-                                    .fill(game.currentDisplayIndex == displayIdx ? Color.orange : Color.gray.opacity(0.28))
+                                    .fill(game.currentDisplayIndex == displayIdx ? visualHighlightColor : Color.gray.opacity(0.28))
                                     .frame(width: 96, height: 96)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 10)
@@ -510,11 +439,13 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 620)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Visual TP:\(game.posHits)  Miss:\(game.posMisses)  FP:\(game.posFalse)")
-                Text("Audio  TP:\(game.audHits)  Miss:\(game.audMisses)  FP:\(game.audFalse)")
+            if game.didCompleteSession && !game.isRunning && !game.isPreparingStart {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Visual TP:\(game.posHits)  Miss:\(game.posMisses)  FP:\(game.posFalse)")
+                    Text("Audio  TP:\(game.audHits)  Miss:\(game.audMisses)  FP:\(game.audFalse)")
+                }
+                .font(.system(.body, design: .monospaced))
             }
-            .font(.system(.body, design: .monospaced))
 
             Spacer(minLength: 0)
         }
@@ -526,6 +457,116 @@ struct ContentView: View {
                 onJ: { game.registerAudioAction() }
             )
         )
+        .sheet(isPresented: $showHelp) {
+            HelpView()
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(visualHighlightColor: $visualHighlightColor)
+        }
+        .sheet(isPresented: $game.showResultPopup) {
+            VStack(spacing: 18) {
+                Text("Session Complete")
+                    .font(.system(size: 36, weight: .bold))
+                Text(game.resultSummaryText)
+                    .font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 560)
+                Button("Close") {
+                    game.showResultPopup = false
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(28)
+            .frame(minWidth: 640, minHeight: 320)
+        }
+    }
+}
+
+struct HelpView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("How Dual N-Back Works")
+                .font(.title.bold())
+            Text("In each trial, one square in the 3x3 ring lights up and one spoken letter plays.")
+            Text("Your task is to compare the current trial with the trial N steps earlier:")
+            Text("• Press F for a visual match if the highlighted square is in the same position as N trials ago.")
+            Text("• Press J for an auditory match if the spoken letter is the same as N trials ago.")
+            Text("A trial can be visual-only, audio-only, both, or neither. Respond during the current 3-second cycle.")
+            Text("Scoring uses hits, misses, and false positives. At the end of the session, the app adjusts N automatically based on your average accuracy.")
+            Text("Timing:")
+            Text("• Stimulus visible for 0.5 seconds")
+            Text("• Gap for 2.5 seconds")
+            Text("• Total cycle length: 3.0 seconds")
+            HStack {
+                Spacer()
+                Button("Close") {
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 720, minHeight: 420)
+    }
+}
+
+struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var visualHighlightColor: Color
+    private let presetColors: [Color] = [
+        Color(red: 0.98, green: 0.62, blue: 0.33), // warm peach
+        Color(red: 0.37, green: 0.70, blue: 0.94), // soft sky
+        Color(red: 0.42, green: 0.78, blue: 0.61), // mint
+        Color(red: 0.96, green: 0.78, blue: 0.42), // honey
+        Color(red: 0.79, green: 0.64, blue: 0.96), // lavender
+        Color(red: 0.95, green: 0.49, blue: 0.57), // coral rose
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Settings")
+                .font(.title.bold())
+            Text("Visual stimulus color")
+                .font(.headline)
+            Text("Quick presets")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                ForEach(Array(presetColors.enumerated()), id: \.offset) { _, color in
+                    Button {
+                        visualHighlightColor = color
+                    } label: {
+                        Circle()
+                            .fill(color)
+                            .frame(width: 28, height: 28)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.black.opacity(0.15), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            ColorPicker("Choose highlight color", selection: $visualHighlightColor, supportsOpacity: false)
+            RoundedRectangle(cornerRadius: 10)
+                .fill(visualHighlightColor)
+                .frame(width: 120, height: 60)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.gray.opacity(0.5), lineWidth: 1)
+                )
+            HStack {
+                Spacer()
+                Button("Done") {
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 520, minHeight: 260)
     }
 }
 

@@ -1,0 +1,15 @@
+# macOS metadata
+**/.DS_Store
+
+# Swift Package Manager
+**/.build/
+
+# Xcode user/machine-specific files
+**/xcuserdata/
+**/*.xcuserstate
+DerivedData/
+
+# Local build outputs
+SwiftDualNBackPrototype/Build/
+DualNBack.app/
+**/*.dSYM/
