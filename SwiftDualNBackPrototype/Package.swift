@@ -10,7 +10,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "SwiftDualNBackPrototype",
-            path: "Sources/SwiftDualNBackPrototype"
+            path: "Sources/SwiftDualNBackPrototype",
+            exclude: ["Assets.xcassets"]
         ),
     ]
 )

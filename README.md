@@ -21,6 +21,7 @@ You respond when either stream matches what appeared **N trials ago**.
 - Inter-trial gap: `2500 ms`
 - Total pacing: `3000 ms` per trial
 - Session starts with a spoken `3, 2, 1` countdown
+- The game starts `500 ms` after the spoken `1`
 
 ### Session length and match mix
 - Trials per session: `20 + N`
@@ -39,6 +40,21 @@ Per modality (visual/audio), the app tracks:
 Accuracy formula:
 - `accuracy = TP / (TP + Misses + FP)`
 
+### Score history (new)
+- Each completed session is saved with:
+  - visual/audio accuracy percentages
+  - date + time completed
+  - `N` level before and after adaptation
+  - TP/Miss/FP counts for each modality
+- History is stored locally as JSON in macOS Application Support:
+  - `~/Library/Application Support/DualNBack/score_history.json`
+- The app includes:
+  - a **Statistics** screen with a visual/audio accuracy trend chart over time (straight-line segments)
+  - a full session list showing timestamp, `N` transition, and percentages
+  - a one-click **Export CSV** action from Statistics for analysis in Numbers/Excel
+  - exported CSV defaults to a filename with the included date range
+  - a **Clear Statistics Data** action that requires explicit confirmation
+
 ### Adaptive N logic
 After each session, the app updates N from average (visual+audio) accuracy:
 - `>= 90%`: N increases by 1
@@ -49,6 +65,10 @@ After each session, the app updates N from average (visual+audio) accuracy:
 - End-of-session summary popup
 - In-app Help sheet
 - Settings sheet for visual highlight color presets/custom color
+- Settings toggle for showing/hiding live status text (example: `Trial 2/22 | N=2`)
+- Settings controls for app-open level behavior:
+  - resume at last level (default)
+  - or start at a user-selected level (1...8)
 - App icon in `Assets.xcassets` for macOS app bundle/Dock
 
 ## Controls
@@ -73,10 +93,21 @@ After each session, the app updates N from average (visual+audio) accuracy:
 2. The app is produced at `DualNBack.app`
 3. Drag `DualNBack.app` into the Dock
 
+### If you add/move source files
+- Regenerate the Xcode project with `xcodegen` from `SwiftDualNBackPrototype/`
+
 ## Project Structure
 - `BUILD_DOCK_APP.command` (builds a Release app bundle at `DualNBack.app`)
 - `SwiftDualNBackPrototype/Sources/SwiftDualNBackPrototype/`
-  - `DualNBackPrototypeApp.swift` (game engine + SwiftUI views)
+  - `DualNBackPrototypeApp.swift` (app entry only)
+  - `Engine/GameEngine.swift` (session lifecycle, trial generation, scoring, persistence hooks)
+  - `Models/SessionScore.swift` (saved session data model)
+  - `Storage/StatisticsStore.swift` (JSON load/save/clear in Application Support)
+  - `Views/ContentView.swift` (main gameplay UI + sheets)
+  - `Views/StatisticsView.swift` (Statistics UI + chart + CSV export)
+  - `Views/SettingsView.swift` (color + startup + live-status preferences)
+  - `Views/HelpView.swift` (help sheet)
+  - `Views/KeyCaptureView.swift` (keyboard capture for `F` and `J`)
   - `main.swift` (entrypoint)
   - `Assets.xcassets/AppIcon.appiconset/` (Dock/app icon assets)
 - `SwiftDualNBackPrototype/SwiftDualNBackPrototype.xcodeproj/` (Xcode project)
