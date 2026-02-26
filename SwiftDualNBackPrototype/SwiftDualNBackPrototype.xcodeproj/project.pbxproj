@@ -263,12 +263,14 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Dual N-Back";
+				INFOPLIST_KEY_CFBundleName = "Dual N-Back";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_NAME = SwiftDualNBackPrototype;
+				PRODUCT_NAME = "Dual N-Back";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -339,12 +341,14 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Dual N-Back";
+				INFOPLIST_KEY_CFBundleName = "Dual N-Back";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_NAME = SwiftDualNBackPrototype;
+				PRODUCT_NAME = "Dual N-Back";
 				SDKROOT = macosx;
 			};
 			name = Release;

@@ -15,8 +15,10 @@ targets:
       - Sources/SwiftDualNBackPrototype
     settings:
       base:
-        PRODUCT_NAME: SwiftDualNBackPrototype
+        PRODUCT_NAME: "Dual N-Back"
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "Dual N-Back"
+        INFOPLIST_KEY_CFBundleName: "Dual N-Back"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ""

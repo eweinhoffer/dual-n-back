@@ -2,6 +2,16 @@
 
 A native macOS Dual N-Back training app built with SwiftUI.
 
+## Screenshots
+
+### Main
+
+![Dual N-Back main screen](docs/screenshots/latest/main.png)
+
+### Statistics
+
+![Dual N-Back statistics screen](docs/screenshots/latest/statistics.png)
+
 ## What Dual N-Back Is
 You track two streams at once on each trial:
 - Visual: the highlighted square position
@@ -49,7 +59,7 @@ Accuracy formula:
 - History is stored locally as JSON in macOS Application Support:
   - `~/Library/Application Support/DualNBack/score_history.json`
 - The app includes:
-  - a **Statistics** screen with a visual/audio accuracy trend chart over time (straight-line segments)
+  - a **Statistics** screen with a visual/audio accuracy chart by session index (equal spacing, straight-line segments)
   - a full session list showing timestamp, `N` transition, and percentages
   - a one-click **Export CSV** action from Statistics for analysis in Numbers/Excel
   - exported CSV defaults to a filename with the included date range
@@ -65,6 +75,8 @@ After each session, the app updates N from average (visual+audio) accuracy:
 - End-of-session summary popup
 - In-app Help sheet
 - Settings sheet for visual highlight color presets/custom color
+- Main game window defaults to a compact width while remaining resizable
+- Statistics opens as a separate resizable window
 - Settings toggle for showing/hiding live status text (example: `Trial 2/22 | N=2`)
 - Settings controls for app-open level behavior:
   - resume at last level (default)
@@ -90,14 +102,33 @@ After each session, the app updates N from average (visual+audio) accuracy:
 
 ### Build a Dock-ready app bundle
 1. Run `./BUILD_DOCK_APP.command` from the repo root
-2. The app is produced at `DualNBack.app`
-3. Drag `DualNBack.app` into the Dock
+2. The app is produced at `Dual N-Back.app`
+3. Drag `Dual N-Back.app` into the Dock
+
+### Capture app screenshots with Peekaboo (CLI)
+1. Install Peekaboo:
+   - `brew install peekaboo`
+2. Grant required macOS permissions for your terminal app:
+   - `System Settings > Privacy & Security > Screen & System Audio Recording`
+   - `System Settings > Privacy & Security > Accessibility`
+3. Run:
+   - `./scripts/capture_peekaboo_screenshots.sh`
+4. Images are saved to:
+   - `docs/screenshots/latest/` (or your custom path argument)
+5. Full workflow and security notes:
+   - `PEEKABOO_SCREENSHOTS_README.md`
+
+Security note:
+- Screenshots can contain personal information (notifications, file names, app state).
+- Review images before committing to GitHub.
 
 ### If you add/move source files
 - Regenerate the Xcode project with `xcodegen` from `SwiftDualNBackPrototype/`
 
 ## Project Structure
-- `BUILD_DOCK_APP.command` (builds a Release app bundle at `DualNBack.app`)
+- `BUILD_DOCK_APP.command` (builds a Release app bundle at `Dual N-Back.app`)
+- `scripts/capture_peekaboo_screenshots.sh` (automated window screenshots via Peekaboo CLI)
+- `PEEKABOO_SCREENSHOTS_README.md` (detailed screenshot workflow + security checklist)
 - `SwiftDualNBackPrototype/Sources/SwiftDualNBackPrototype/`
   - `DualNBackPrototypeApp.swift` (app entry only)
   - `Engine/GameEngine.swift` (session lifecycle, trial generation, scoring, persistence hooks)
@@ -117,5 +148,5 @@ After each session, the app updates N from average (visual+audio) accuracy:
 - `LICENSE` (MIT)
 
 ## Security And Repo Hygiene
-- `.gitignore` excludes local build products (`Build/`, `DualNBack.app`, `.dSYM`) and machine-specific Xcode files.
+- `.gitignore` excludes local build products (`Build/`, `DualNBack.app`, `Dual N-Back.app`, `.dSYM`) and machine-specific Xcode files.
 - Before publishing, run a quick secrets scan (API keys/tokens/passwords/private keys) as part of your release checklist.

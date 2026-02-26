@@ -12,4 +12,5 @@ DerivedData/
 # Local build outputs
 SwiftDualNBackPrototype/Build/
 DualNBack.app/
+Dual N-Back.app/
 **/*.dSYM/

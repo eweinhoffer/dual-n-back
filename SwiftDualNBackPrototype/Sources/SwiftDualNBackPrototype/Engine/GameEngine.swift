@@ -68,10 +68,6 @@ final class GameEngine: NSObject, ObservableObject {
         return playableGridIndices[currentPosition]
     }
 
-    var statisticsStorageDescription: String {
-        "Saved locally in Application Support as JSON."
-    }
-
     func start() {
         if isRunning || isPreparingStart { return }
         if nLevel < 1 { nLevel = 1 }
@@ -183,7 +179,7 @@ final class GameEngine: NSObject, ObservableObject {
             guard let self, self.isPreparingStart else { return }
             self.isPreparingStart = false
             self.isRunning = true
-            self.statusText = "Game running. Trial pacing is fixed at 3.0s (0.5s on, 2.5s gap)."
+            self.statusText = "Game running."
             self.runTrial()
             self.cycleTimer = Timer.scheduledTimer(withTimeInterval: self.cycleSeconds, repeats: true) { [weak self] _ in
                 DispatchQueue.main.async {

@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var game = GameEngine()
+    @EnvironmentObject private var game: GameEngine
+    @Environment(\.openWindow) private var openWindow
     @State private var showHelp = false
     @State private var showSettings = false
-    @State private var showStatistics = false
     @AppStorage("showLiveStatusText") private var showLiveStatusText = true
     @AppStorage("atAppOpenResumeLastLevel") private var atAppOpenResumeLastLevel = true
     @AppStorage("atAppOpenStartLevel") private var atAppOpenStartLevel = 2
@@ -14,12 +14,8 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Text("Dual N-Back (Swift)")
+            Text("Dual N-Back")
                 .font(.title2.bold())
-
-            Text("F = visual match | J = auditory-letter match")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
 
             HStack(spacing: 18) {
                 Stepper("N: \(game.nLevel)", value: $game.nLevel, in: 1...8)
@@ -32,17 +28,9 @@ struct ContentView: View {
                     showSettings = true
                 }
                 Button("Statistics") {
-                    showStatistics = true
+                    openWindow(id: "statistics")
                 }
             }
-
-            Text("Saved sessions: \(game.statisticsHistory.count)")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-
-            Text("Timing is fixed: 500ms stimulus + 2500ms gap (3s total pacing)")
-                .font(.callout)
-                .foregroundStyle(.secondary)
 
             VStack(spacing: 8) {
                 ForEach(0..<3, id: \.self) { row in
@@ -84,7 +72,7 @@ struct ContentView: View {
                     game.registerPositionAction()
                 } label: {
                     Label("Visual Match (F)", systemImage: "square.grid.3x3.fill")
-                        .frame(minWidth: 190)
+                        .frame(minWidth: 170)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(game.visualButtonActive ? .orange : .accentColor)
@@ -94,7 +82,7 @@ struct ContentView: View {
                     game.registerAudioAction()
                 } label: {
                     Label("Auditory Match (J)", systemImage: "speaker.wave.2.fill")
-                        .frame(minWidth: 190)
+                        .frame(minWidth: 170)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(game.audioButtonActive ? .orange : .accentColor)
@@ -119,7 +107,7 @@ struct ContentView: View {
             Spacer(minLength: 0)
         }
         .padding(20)
-        .frame(idealWidth: 760, idealHeight: 760)
+        .frame(minWidth: 460, idealWidth: 620, minHeight: 560, idealHeight: 760)
         .background(
             KeyCaptureView(
                 onF: { game.registerPositionAction() },
@@ -135,13 +123,6 @@ struct ContentView: View {
                 showLiveStatusText: $showLiveStatusText,
                 atAppOpenResumeLastLevel: $atAppOpenResumeLastLevel,
                 atAppOpenStartLevel: $atAppOpenStartLevel
-            )
-        }
-        .sheet(isPresented: $showStatistics) {
-            StatisticsView(
-                sessions: game.statisticsHistory,
-                storageDescription: game.statisticsStorageDescription,
-                onClearStatistics: { game.clearStatisticsHistory() }
             )
         }
         .sheet(isPresented: $game.showResultPopup) {

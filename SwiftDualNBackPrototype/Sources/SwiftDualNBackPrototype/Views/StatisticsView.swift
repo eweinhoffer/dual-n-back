@@ -5,35 +5,49 @@ import UniformTypeIdentifiers
 
 private enum StreamSeries: String {
     case visual = "Visual"
-    case audio = "Audio"
+    case audio = "Auditory"
 }
 
 private struct ChartPoint: Identifiable {
     let id: String
-    let time: Date
+    let sessionIndex: Int
     let accuracy: Double
     let series: StreamSeries
 }
 
 struct StatisticsView: View {
     @Environment(\.dismiss) private var dismiss
-    let sessions: [SessionScore]
-    let storageDescription: String
     let onClearStatistics: () -> Void
+    private let sortedSessions: [SessionScore]
+    private let chartPoints: [ChartPoint]
     @State private var showClearConfirmation = false
     @State private var exportStatusMessage = ""
 
-    private var sortedSessions: [SessionScore] {
-        sessions.sorted { $0.completedAt < $1.completedAt }
-    }
+    private static let csvTimestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
-    private var chartPoints: [ChartPoint] {
+    private static let csvFilenameDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    init(sessions: [SessionScore], onClearStatistics: @escaping () -> Void) {
+        self.onClearStatistics = onClearStatistics
+        self.sortedSessions = sessions.sorted { $0.completedAt < $1.completedAt }
+
         var points: [ChartPoint] = []
-        for session in sortedSessions {
+        points.reserveCapacity(self.sortedSessions.count * 2)
+        for (index, session) in sortedSessions.enumerated() {
+            let sessionIndex = index + 1
             points.append(
                 .init(
                     id: "\(session.id.uuidString)-\(StreamSeries.visual.rawValue)",
-                    time: session.completedAt,
+                    sessionIndex: sessionIndex,
                     accuracy: session.visualAccuracy,
                     series: .visual
                 )
@@ -41,13 +55,20 @@ struct StatisticsView: View {
             points.append(
                 .init(
                     id: "\(session.id.uuidString)-\(StreamSeries.audio.rawValue)",
-                    time: session.completedAt,
+                    sessionIndex: sessionIndex,
                     accuracy: session.audioAccuracy,
                     series: .audio
                 )
             )
         }
-        return points
+        self.chartPoints = points
+    }
+
+    private var savedStatusText: String {
+        guard let lastUpdatedAt = sortedSessions.last?.completedAt else {
+            return "Saved locally, no sessions yet."
+        }
+        return "Saved locally, last updated at \(lastUpdatedAt.formatted(.dateTime.year().month().day().hour().minute()))."
     }
 
     var body: some View {
@@ -55,7 +76,7 @@ struct StatisticsView: View {
             Text("Statistics")
                 .font(.title.bold())
 
-            Text(storageDescription)
+            Text(savedStatusText)
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -67,7 +88,7 @@ struct StatisticsView: View {
                 Chart {
                     ForEach(chartPoints) { point in
                         LineMark(
-                            x: .value("Time", point.time),
+                            x: .value("Session", point.sessionIndex),
                             y: .value("Accuracy", point.accuracy),
                             series: .value("Stream", point.series.rawValue)
                         )
@@ -76,7 +97,7 @@ struct StatisticsView: View {
 
                     ForEach(chartPoints) { point in
                         PointMark(
-                            x: .value("Time", point.time),
+                            x: .value("Session", point.sessionIndex),
                             y: .value("Accuracy", point.accuracy)
                         )
                         .foregroundStyle(by: .value("Stream", point.series.rawValue))
@@ -87,15 +108,8 @@ struct StatisticsView: View {
                     StreamSeries.audio.rawValue: Color.green,
                 ])
                 .chartYScale(domain: 0...100)
+                .chartLegend(position: .top, alignment: .leading)
                 .frame(height: 220)
-
-                HStack(spacing: 20) {
-                    Label("Visual Accuracy", systemImage: "circle.fill")
-                        .foregroundStyle(.blue)
-                    Label("Audio Accuracy", systemImage: "circle.fill")
-                        .foregroundStyle(.green)
-                }
-                .font(.callout)
 
                 List(sortedSessions.reversed()) { session in
                     HStack(spacing: 16) {
@@ -141,7 +155,7 @@ struct StatisticsView: View {
             }
         }
         .padding(24)
-        .frame(minWidth: 780, minHeight: 560)
+        .frame(minWidth: 760, idealWidth: 900, minHeight: 520, idealHeight: 640)
         .alert("Erase all score history?", isPresented: $showClearConfirmation) {
             Button("Erase", role: .destructive) {
                 onClearStatistics()
@@ -175,9 +189,6 @@ struct StatisticsView: View {
     }
 
     private func makeCSV(from sessions: [SessionScore]) -> String {
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
         var lines: [String] = []
         lines.append(
             [
@@ -198,7 +209,7 @@ struct StatisticsView: View {
 
         for session in sessions {
             let row: [String] = [
-                isoFormatter.string(from: session.completedAt),
+                Self.csvTimestampFormatter.string(from: session.completedAt),
                 String(session.startN),
                 String(session.endN),
                 String(format: "%.2f", session.visualAccuracy),
@@ -232,11 +243,8 @@ struct StatisticsView: View {
             return "dual_n_back_score_history.csv"
         }
 
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.dateFormat = "yyyy-MM-dd"
-        let firstDate = formatter.string(from: first)
-        let lastDate = formatter.string(from: last)
+        let firstDate = Self.csvFilenameDateFormatter.string(from: first)
+        let lastDate = Self.csvFilenameDateFormatter.string(from: last)
         return "dual_n_back_score_history_\(firstDate)_to_\(lastDate).csv"
     }
 }
