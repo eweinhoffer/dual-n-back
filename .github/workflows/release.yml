@@ -21,16 +21,19 @@ jobs:
       matrix:
         include:
           - arch: arm64
-            runner: macos-14
             xcode_arch: arm64
           - arch: x86_64
-            runner: macos-13
             xcode_arch: x86_64
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "latest-stable"
 
       - name: Build Release app (${{ matrix.arch }})
         shell: bash
