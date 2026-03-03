@@ -1,0 +1,65 @@
+name: Homebrew Smoke Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  install-via-homebrew:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            expected_arch: arm64
+          - runner: macos-13
+            expected_arch: x86_64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Install from custom tap
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew tap eweinhoffer/dual-n-back https://github.com/eweinhoffer/dual-n-back
+          brew install --cask dual-n-back
+
+      - name: Verify cask installation and executable architecture
+        shell: bash
+        env:
+          EXPECTED_ARCH: ${{ matrix.expected_arch }}
+        run: |
+          set -euo pipefail
+          brew list --cask dual-n-back
+
+          APP_PATH=""
+          if [[ -d "/Applications/Dual N-Back.app" ]]; then
+            APP_PATH="/Applications/Dual N-Back.app"
+          elif [[ -d "$HOME/Applications/Dual N-Back.app" ]]; then
+            APP_PATH="$HOME/Applications/Dual N-Back.app"
+          fi
+
+          if [[ -z "$APP_PATH" ]]; then
+            echo "Dual N-Back.app not found in expected install locations."
+            exit 1
+          fi
+
+          BIN_PATH="$APP_PATH/Contents/MacOS/Dual N-Back"
+          if [[ ! -x "$BIN_PATH" ]]; then
+            echo "Expected executable missing: $BIN_PATH"
+            exit 1
+          fi
+
+          ACTUAL_ARCHS="$(lipo -archs "$BIN_PATH")"
+          echo "Executable architectures: $ACTUAL_ARCHS"
+
+          if [[ "$ACTUAL_ARCHS" != *"$EXPECTED_ARCH"* ]]; then
+            echo "Expected architecture $EXPECTED_ARCH not present."
+            exit 1
+          fi
+
+      - name: Cleanup cask
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew uninstall --cask dual-n-back || true
