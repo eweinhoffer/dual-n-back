@@ -1,0 +1,189 @@
+name: macOS Release Artifact
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional tag name (example: v1.0.0). Leave empty to run a dry-run build with workflow artifact only."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+            xcode_arch: arm64
+          - arch: x86_64
+            runner: macos-13
+            xcode_arch: x86_64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Release app (${{ matrix.arch }})
+        shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
+          XCODE_ARCH: ${{ matrix.xcode_arch }}
+        run: |
+          set -euo pipefail
+
+          REPO_DIR="$GITHUB_WORKSPACE"
+          PROJECT_DIR="$REPO_DIR/SwiftDualNBackPrototype"
+          BUILD_DIR="$PROJECT_DIR/Build"
+          SOURCE_APP="$BUILD_DIR/Build/Products/Release/Dual N-Back.app"
+          OUTPUT_APP="$REPO_DIR/Dual N-Back.app"
+
+          xcodebuild \
+            -project "$PROJECT_DIR/SwiftDualNBackPrototype.xcodeproj" \
+            -scheme SwiftDualNBackPrototype \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$BUILD_DIR" \
+            ARCHS="$XCODE_ARCH" \
+            ONLY_ACTIVE_ARCH=YES \
+            build
+
+          if [[ ! -d "$SOURCE_APP" ]]; then
+            echo "Expected app bundle missing at: $SOURCE_APP"
+            exit 1
+          fi
+
+          rm -rf "$OUTPUT_APP"
+          ditto "$SOURCE_APP" "$OUTPUT_APP"
+
+      - name: Package unsigned ZIP artifact (${{ matrix.arch }})
+        shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ASSET_NAME="Dual-N-Back-macOS-unsigned-${ARCH}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "Dual N-Back.app" "dist/${ASSET_NAME}"
+          (
+            cd dist
+            shasum -a 256 "${ASSET_NAME}" > "SHA256SUMS-${ARCH}.txt"
+          )
+
+      - name: Upload workflow artifact (${{ matrix.arch }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: dual-n-back-macos-unsigned-${{ matrix.arch }}
+          path: |
+            dist/Dual-N-Back-macOS-unsigned-${{ matrix.arch }}.zip
+            dist/SHA256SUMS-${{ matrix.arch }}.txt
+
+  publish-release:
+    needs: build-macos
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dual-n-back-macos-unsigned-*
+          merge-multiple: true
+          path: dist
+
+      - name: Build consolidated checksum manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat dist/SHA256SUMS-*.txt | sort > dist/SHA256SUMS.txt
+
+      - name: Optional signature for checksum manifest
+        shell: bash
+        env:
+          RELEASE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.RELEASE_SIGNING_PRIVATE_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${RELEASE_SIGNING_PRIVATE_KEY_B64}" ]]; then
+            echo "Configuring optional checksum signature..."
+            printf '%s' "${RELEASE_SIGNING_PRIVATE_KEY_B64}" | base64 -d > /tmp/release-signing-private.pem
+            chmod 600 /tmp/release-signing-private.pem
+            openssl pkey -in /tmp/release-signing-private.pem -pubout -out dist/release-signing-public.pem
+            openssl dgst -sha256 -sign /tmp/release-signing-private.pem -out dist/SHA256SUMS.txt.sig dist/SHA256SUMS.txt
+            echo "SIGNED_RELEASE=true" >> "$GITHUB_ENV"
+          else
+            echo "Optional signing secret not configured; skipping signature artifact."
+            echo "SIGNED_RELEASE=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Render release notes from template
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/render_release_notes.sh
+          if [[ "${SIGNED_RELEASE:-false}" == "true" ]]; then
+            SIGNED="true"
+          else
+            SIGNED="false"
+          fi
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            TAG_NAME="${GITHUB_REF_NAME}"
+          else
+            TAG_NAME="${{ github.event.inputs.release_tag }}"
+          fi
+          scripts/render_release_notes.sh "$TAG_NAME" "$SIGNED" ".github/release-notes-template.md" "dist/release-notes.md"
+
+      - name: Upload combined workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dual-n-back-release-bundle
+          path: dist
+
+      - name: Publish assets to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            TAG_NAME="${GITHUB_REF_NAME}"
+          else
+            TAG_NAME="${{ github.event.inputs.release_tag }}"
+          fi
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists. Uploading/overwriting assets."
+          else
+            gh release create "$TAG_NAME" \
+              --title "$TAG_NAME" \
+              --notes-file "dist/release-notes.md"
+          fi
+
+          gh release edit "$TAG_NAME" --notes-file "dist/release-notes.md"
+
+          ASSETS=(
+            "dist/Dual-N-Back-macOS-unsigned-arm64.zip"
+            "dist/Dual-N-Back-macOS-unsigned-x86_64.zip"
+            "dist/SHA256SUMS.txt"
+          )
+          if [[ -f "dist/SHA256SUMS.txt.sig" ]]; then
+            ASSETS+=("dist/SHA256SUMS.txt.sig")
+          fi
+          if [[ -f "dist/release-signing-public.pem" ]]; then
+            ASSETS+=("dist/release-signing-public.pem")
+          fi
+
+          gh release upload "$TAG_NAME" \
+            "${ASSETS[@]}" \
+            --clobber

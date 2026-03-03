@@ -89,9 +89,68 @@ After each session, the app updates N from average (visual+audio) accuracy:
 - If both streams match, press both
 - No response is needed for non-match trials
 
-## Run The App
+## Install (Recommended For Most Users)
 
-### Xcode (recommended)
+1. Open the latest release:
+   - `https://github.com/eweinhoffer/dual-n-back/releases/latest`
+2. Find your Mac architecture:
+   - `uname -m`
+   - `arm64` = Apple Silicon, `x86_64` = Intel
+3. Download:
+   - `Dual-N-Back-macOS-unsigned-arm64.zip` (Apple Silicon)
+   - or `Dual-N-Back-macOS-unsigned-x86_64.zip` (Intel)
+4. Download `SHA256SUMS.txt` from the same release.
+5. Verify checksum:
+   - `shasum -a 256 -c SHA256SUMS.txt`
+6. If signature assets are present, verify signature too:
+   - `openssl dgst -sha256 -verify release-signing-public.pem -signature SHA256SUMS.txt.sig SHA256SUMS.txt`
+7. Unzip and move `Dual N-Back.app` to `/Applications`
+8. Drag `Dual N-Back.app` into the Dock
+
+## Install With Homebrew (Custom Tap)
+
+1. Add this repo as a tap:
+   - `brew tap eweinhoffer/dual-n-back https://github.com/eweinhoffer/dual-n-back`
+2. Install the cask:
+   - `brew install --cask dual-n-back`
+3. Upgrade later:
+   - `brew upgrade --cask dual-n-back`
+
+Notes:
+- This uses a custom tap (`Casks/dual-n-back.rb`), not Homebrew core.
+- The cask tracks latest unsigned artifacts and currently uses `sha256 :no_check`.
+- For better security, still verify `SHA256SUMS.txt` (and signature if present) from the release.
+
+### Important Security Note (Interim Unsigned Build)
+- The current release ZIP is unsigned while Apple notarization is being set up.
+- On first launch, macOS Gatekeeper may block the app.
+- If blocked, right-click the app, choose **Open**, then confirm.
+- If needed: `System Settings > Privacy & Security > Open Anyway`.
+- Do not install app bundles from unofficial links; use GitHub Releases only.
+
+## Build From Source (Developer Path)
+
+### Requirements
+- macOS 13 or newer
+- Full Xcode 15+ installed in `/Applications/Xcode.app` (Command Line Tools alone are not enough)
+- Active developer directory set to full Xcode:
+  - `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
+- First-launch components installed:
+  - `sudo xcodebuild -runFirstLaunch`
+- Xcode license accepted:
+  - `sudo xcodebuild -license accept`
+
+### Preflight check
+- Run:
+  - `./scripts/check_build_env.sh`
+- This prints PASS/FAIL checks with exact fix commands.
+
+### Build a Dock-ready app bundle
+1. Run `./BUILD_DOCK_APP.command` from the repo root
+2. The app is produced at `Dual N-Back.app`
+3. Drag `Dual N-Back.app` into the Dock
+
+### Xcode (manual run path)
 1. Open `SwiftDualNBackPrototype/SwiftDualNBackPrototype.xcodeproj`
 2. Choose scheme `SwiftDualNBackPrototype`
 3. Choose target `My Mac`
@@ -100,10 +159,30 @@ After each session, the app updates N from average (visual+audio) accuracy:
 ### One-click helper (open project)
 - Double-click `SwiftDualNBackPrototype/OPEN_XCODE.command`
 
-### Build a Dock-ready app bundle
-1. Run `./BUILD_DOCK_APP.command` from the repo root
-2. The app is produced at `Dual N-Back.app`
-3. Drag `Dual N-Back.app` into the Dock
+## Build Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| `xcodebuild: command not found` | Xcode not installed | Install Xcode, then run `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` |
+| Active developer directory points to CommandLineTools | Full Xcode not selected | Run `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` |
+| `xcodebuild` first-launch/license errors | Xcode setup incomplete | Run `sudo xcodebuild -runFirstLaunch` and `sudo xcodebuild -license accept` |
+| Build script cannot find `Dual N-Back.app` | Build failed or wrong destination | Re-run `./scripts/check_build_env.sh`, then build again |
+| “Using the first of multiple matching destinations” | Ambiguous build destination | `BUILD_DOCK_APP.command` now pins destination to `platform=macOS` |
+
+## Automated Release Artifacts
+
+- CI publishes architecture-specific ZIPs when you push a Git tag like `v1.0.0`:
+  - `Dual-N-Back-macOS-unsigned-arm64.zip`
+  - `Dual-N-Back-macOS-unsigned-x86_64.zip`
+- CI also publishes:
+  - `SHA256SUMS.txt` (checksum manifest)
+  - optional `SHA256SUMS.txt.sig` + `release-signing-public.pem` (if `RELEASE_SIGNING_PRIVATE_KEY_B64` is configured)
+- You can also run the release workflow manually from GitHub Actions (`workflow_dispatch`) for dry-run builds or release backfills.
+- Release notes are rendered from:
+  - `.github/release-notes-template.md`
+- Optional checksum signing setup:
+  - `docs/RELEASE_SIGNING_SETUP.md`
+- Planned next phase: replace unsigned ZIP as primary artifact with signed/notarized DMG.
 
 ### Capture app screenshots with Peekaboo (CLI)
 1. Install Peekaboo:
@@ -127,8 +206,14 @@ Security note:
 
 ## Project Structure
 - `BUILD_DOCK_APP.command` (builds a Release app bundle at `Dual N-Back.app`)
+- `Casks/dual-n-back.rb` (custom Homebrew cask for this repo tap)
+- `scripts/check_build_env.sh` (Xcode/toolchain preflight checks with actionable fixes)
+- `scripts/render_release_notes.sh` (renders release notes from template + signing state)
 - `scripts/capture_peekaboo_screenshots.sh` (automated window screenshots via Peekaboo CLI)
 - `PEEKABOO_SCREENSHOTS_README.md` (detailed screenshot workflow + security checklist)
+- `docs/RELEASE_SIGNING_SETUP.md` (optional release signature setup for CI)
+- `.github/workflows/release.yml` (tag-triggered macOS release artifact pipeline)
+- `.github/release-notes-template.md` (release notes template used by CI)
 - `SwiftDualNBackPrototype/Sources/SwiftDualNBackPrototype/`
   - `DualNBackPrototypeApp.swift` (app entry only)
   - `Engine/GameEngine.swift` (session lifecycle, trial generation, scoring, persistence hooks)
@@ -150,3 +235,4 @@ Security note:
 ## Security And Repo Hygiene
 - `.gitignore` excludes local build products (`Build/`, `DualNBack.app`, `Dual N-Back.app`, `.dSYM`) and machine-specific Xcode files.
 - Before publishing, run a quick secrets scan (API keys/tokens/passwords/private keys) as part of your release checklist.
+- Never commit signing certificates, keychains, notarization credentials, or app-specific passwords.
