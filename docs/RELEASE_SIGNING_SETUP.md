@@ -1,18 +1,18 @@
-# Release Signing Setup (Optional)
+# Release Signature Setup
 
-This project can optionally sign release checksum manifests in CI.
-
-When configured, each GitHub Release also includes:
+This is optional. It lets GitHub Releases publish:
 - `SHA256SUMS.txt.sig`
 - `release-signing-public.pem`
 
-Users can then verify authenticity with:
+That gives users a way to verify that the checksum file came from your release pipeline.
+
+## User-side verification command
 
 ```bash
 openssl dgst -sha256 -verify release-signing-public.pem -signature SHA256SUMS.txt.sig SHA256SUMS.txt
 ```
 
-## 1) Generate a key pair
+## Step 1: create a signing key pair
 
 ```bash
 mkdir -p ~/.dual-n-back-signing
@@ -21,7 +21,7 @@ openssl pkey -in ~/.dual-n-back-signing/release-signing-private.pem -pubout -out
 chmod 600 ~/.dual-n-back-signing/release-signing-private.pem
 ```
 
-## 2) Add private key to GitHub Actions secrets
+## Step 2: add the private key to GitHub Actions
 
 Base64-encode the private key:
 
@@ -29,20 +29,21 @@ Base64-encode the private key:
 base64 < ~/.dual-n-back-signing/release-signing-private.pem
 ```
 
-Create repository secret:
+Create this repository secret:
 - Name: `RELEASE_SIGNING_PRIVATE_KEY_B64`
-- Value: base64 output above
+- Value: the base64 output above
 
-## 3) Verify workflow behavior
+## Step 3: verify a release
 
-- Push a test tag (or run manual release workflow with `release_tag`).
-- Confirm release includes:
-  - `SHA256SUMS.txt`
-  - `SHA256SUMS.txt.sig`
-  - `release-signing-public.pem`
+Push a test tag, or run the release workflow manually with a tag.
 
-## Security notes
+The release should include:
+- `SHA256SUMS.txt`
+- `SHA256SUMS.txt.sig`
+- `release-signing-public.pem`
 
-- Never commit the private key.
-- Rotate keys if compromise is suspected.
-- Keep key material out of shell history and shared screenshots.
+## Security rules
+
+- Never commit the private key
+- Rotate the key if compromise is suspected
+- Keep key material out of screenshots, notes, and shell history

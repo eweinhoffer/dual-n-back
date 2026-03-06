@@ -1,96 +1,84 @@
-# Peekaboo Screenshot Workflow
+# Peekaboo Screenshot Guide
 
-This project uses [Peekaboo](https://github.com/steipete/Peekaboo) to capture repeatable screenshots of app windows for docs and commits.
+Use this when you want fresh screenshots for the README or release docs.
 
-## Current screenshot output folder
+## What this script creates
 
 Default output folder:
-
 - `docs/screenshots/latest/`
 
-Files:
-
+Default files:
 - `main.png`
 - `statistics.png`
 
-## Prerequisites
+## Requirements
 
-1. Install Peekaboo:
+Install Peekaboo:
 
 ```bash
 brew install peekaboo
 ```
 
-2. Grant permissions to the app that runs your terminal commands (Terminal/iTerm/Codex):
+Make sure these commands exist:
+- `peekaboo`
+- `jq`
+- `rg`
 
+Grant permissions to the app running your terminal commands:
 - `System Settings > Privacy & Security > Screen & System Audio Recording`
 - `System Settings > Privacy & Security > Accessibility`
 
-3. Verify permissions:
+Check permissions:
 
 ```bash
 peekaboo list permissions
 ```
 
-Both should show `Granted`.
+Both permissions should show `Granted`.
 
-4. Required CLI tools:
+## Build the app first
 
-- `peekaboo`
-- `jq`
-- `rg` (ripgrep)
-
-## One-command capture (recommended)
-
-Run from project root:
-
-```bash
-./scripts/capture_peekaboo_screenshots.sh
-```
-
-Optional custom output directory:
-
-```bash
-./scripts/capture_peekaboo_screenshots.sh docs/screenshots/my-run
-```
-
-The script:
-
-- opens `Dual N-Back.app`
-- sizes the main window to the project default
-- captures `main`
-- opens and captures the `Statistics` window
-- captures by explicit `window-id` (avoids accidental menu-bar captures)
-- forces local execution with `--no-remote` for every Peekaboo command
-- writes PNGs to `docs/screenshots/latest/` by default
-
-## Build app before capture
-
-If the app bundle is missing, build it first:
+If `Dual N-Back.app` is missing, build it:
 
 ```bash
 ./BUILD_DOCK_APP.command
 ```
 
-Expected app path:
+## Capture screenshots
 
-- `Dual N-Back.app`
+Run from the repo root:
 
-## Why this setup is safer and more stable
+```bash
+./scripts/capture_peekaboo_screenshots.sh
+```
 
-- Uses local-only Peekaboo execution (`--no-remote`) to reduce unintended data routing.
-- Uses exact `window-id` targeting instead of generic frontmost captures.
-- Uses deterministic app targeting via bundle ID: `io.dualnback.SwiftDualNBackPrototype`.
-- Uses temporary files in `/tmp` with automatic cleanup (`trap`) so helper artifacts are not left in the repo.
+Use a custom output folder if you want to keep a separate capture set:
 
-## Security checklist before committing screenshots
+```bash
+./scripts/capture_peekaboo_screenshots.sh docs/screenshots/my-run
+```
 
-1. Open each PNG and check for sensitive information.
-2. Confirm no private notifications, personal files, or unrelated app content is visible.
-3. Commit only the screenshot folder you intend to keep.
-4. Prefer committing a single curated screenshot set instead of multiple historical runs.
+## What the script does
 
-Quick status check:
+- Opens `Dual N-Back.app`
+- Sizes the main window to the project default
+- Captures the main window
+- Opens and captures the Statistics window
+- Saves PNG files to `docs/screenshots/latest/` by default
+
+## Security notes
+
+- The script forces local Peekaboo execution with `--no-remote`
+- It captures windows by explicit `window-id`
+- It uses temporary files in `/tmp` and cleans them up automatically
+
+Before committing screenshots:
+
+1. Open each PNG and inspect it.
+2. Make sure no private notifications, file names, or unrelated windows are visible.
+3. Commit only the screenshot set you actually want to keep.
+
+Quick check:
 
 ```bash
 git status --short

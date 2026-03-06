@@ -76,22 +76,8 @@ final class GameEngine: NSObject, ObservableObject {
             statusText = "Could not build valid trial plan for this N"
             return
         }
-        isRunning = false
-        isPreparingStart = true
-        showResultPopup = false
-        trialIndex = -1
-        responses = []
-        awaitingResponseFor = nil
-        currentPosition = nil
-        didCompleteSession = false
-        resultSummaryText = ""
-
-        posHits = 0
-        posMisses = 0
-        posFalse = 0
-        audHits = 0
-        audMisses = 0
-        audFalse = 0
+        prepareSessionForStart()
+        responses.reserveCapacity(totalTrials)
 
         statusText = "Get ready..."
         beginCountdownAndStart()
@@ -105,6 +91,7 @@ final class GameEngine: NSObject, ObservableObject {
         cycleTimer = nil
         hideTimer = nil
         currentPosition = nil
+        awaitingResponseFor = nil
         isRunning = false
         isPreparingStart = false
     }
@@ -250,17 +237,38 @@ final class GameEngine: NSObject, ObservableObject {
         return true
     }
 
+    private func prepareSessionForStart() {
+        isRunning = false
+        isPreparingStart = true
+        showResultPopup = false
+        trialIndex = -1
+        responses.removeAll(keepingCapacity: true)
+        awaitingResponseFor = nil
+        currentPosition = nil
+        didCompleteSession = false
+        resultSummaryText = ""
+        resetScoreCounters()
+    }
+
+    private func resetScoreCounters() {
+        posHits = 0
+        posMisses = 0
+        posFalse = 0
+        audHits = 0
+        audMisses = 0
+        audFalse = 0
+    }
+
     private func speakCountdown(_ value: Int) {
-        let utterance = AVSpeechUtterance(string: "\(value)")
-        utterance.prefersAssistiveTechnologySettings = true
-        utterance.rate = speechRate
-        utterance.pitchMultiplier = 1.0
-        utterance.voice = preferredSpeechVoice
-        speech.speak(utterance)
+        speakString("\(value)")
     }
 
     private func speak(letter: Character) {
-        let utterance = AVSpeechUtterance(string: String(letter).lowercased())
+        speakString(String(letter).lowercased())
+    }
+
+    private func speakString(_ text: String) {
+        let utterance = AVSpeechUtterance(string: text)
         utterance.prefersAssistiveTechnologySettings = true
         utterance.rate = speechRate
         utterance.pitchMultiplier = 1.0
@@ -372,8 +380,14 @@ final class GameEngine: NSObject, ObservableObject {
     }
 
     private func appendSessionToHistory(_ session: SessionScore) {
-        statisticsHistory.append(session)
-        statisticsHistory.sort { $0.completedAt < $1.completedAt }
+        if let last = statisticsHistory.last, last.completedAt <= session.completedAt {
+            statisticsHistory.append(session)
+        } else if let insertionIndex = statisticsHistory.firstIndex(where: { $0.completedAt > session.completedAt }) {
+            statisticsHistory.insert(session, at: insertionIndex)
+        } else {
+            statisticsHistory.append(session)
+        }
+
         do {
             try historyStore.save(statisticsHistory)
         } catch {

@@ -1,0 +1,25 @@
+name: Security Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repo-security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run repository security scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/security_scan.sh
+          ./scripts/security_scan.sh

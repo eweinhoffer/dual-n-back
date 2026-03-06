@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: macos-release-${{ github.ref_name || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build-macos:
     strategy:
@@ -116,12 +120,15 @@ jobs:
           RELEASE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.RELEASE_SIGNING_PRIVATE_KEY_B64 }}
         run: |
           set -euo pipefail
+
           if [[ -n "${RELEASE_SIGNING_PRIVATE_KEY_B64}" ]]; then
             echo "Configuring optional checksum signature..."
-            printf '%s' "${RELEASE_SIGNING_PRIVATE_KEY_B64}" | base64 -d > /tmp/release-signing-private.pem
-            chmod 600 /tmp/release-signing-private.pem
-            openssl pkey -in /tmp/release-signing-private.pem -pubout -out dist/release-signing-public.pem
-            openssl dgst -sha256 -sign /tmp/release-signing-private.pem -out dist/SHA256SUMS.txt.sig dist/SHA256SUMS.txt
+            key_file="$(mktemp)"
+            trap 'rm -f "$key_file"' EXIT
+            printf '%s' "${RELEASE_SIGNING_PRIVATE_KEY_B64}" | base64 -d > "$key_file"
+            chmod 600 "$key_file"
+            openssl pkey -in "$key_file" -pubout -out dist/release-signing-public.pem
+            openssl dgst -sha256 -sign "$key_file" -out dist/SHA256SUMS.txt.sig dist/SHA256SUMS.txt
             echo "SIGNED_RELEASE=true" >> "$GITHUB_ENV"
           else
             echo "Optional signing secret not configured; skipping signature artifact."
@@ -152,7 +159,6 @@ jobs:
           path: dist
 
       - name: Publish assets to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
         env:
           GITHUB_TOKEN: ${{ github.token }}
         shell: bash
@@ -190,3 +196,56 @@ jobs:
           gh release upload "$TAG_NAME" \
             "${ASSETS[@]}" \
             --clobber
+
+  bump-homebrew-cask:
+    needs: publish-release
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download release bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dual-n-back-release-bundle
+          path: dist
+
+      - name: Update Homebrew cask for released tag
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/update_homebrew_cask.sh
+
+          ARM_SHA="$(awk '/Dual-N-Back-macOS-unsigned-arm64.zip$/ { print $1 }' dist/SHA256SUMS.txt)"
+          INTEL_SHA="$(awk '/Dual-N-Back-macOS-unsigned-x86_64.zip$/ { print $1 }' dist/SHA256SUMS.txt)"
+
+          if [[ -z "$ARM_SHA" || -z "$INTEL_SHA" ]]; then
+            echo "Missing arm64/x86_64 checksums in dist/SHA256SUMS.txt"
+            exit 1
+          fi
+
+          scripts/update_homebrew_cask.sh "$TAG_NAME" "$ARM_SHA" "$INTEL_SHA"
+
+      - name: Commit cask bump
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- Casks/dual-n-back.rb; then
+            echo "Homebrew cask already matches $TAG_NAME"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/dual-n-back.rb
+          git commit -m "Bump Homebrew cask for $TAG_NAME"
+          git push origin HEAD:main

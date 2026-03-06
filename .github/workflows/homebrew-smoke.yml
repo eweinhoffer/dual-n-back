@@ -1,6 +1,12 @@
 name: Homebrew Smoke Test
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - Casks/dual-n-back.rb
+      - .github/workflows/homebrew-smoke.yml
   workflow_dispatch:
 
 jobs:
