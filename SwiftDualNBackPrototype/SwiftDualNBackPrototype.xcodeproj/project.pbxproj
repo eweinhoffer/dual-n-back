@@ -263,6 +263,8 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleShortVersionString = 1.0.0;
+				INFOPLIST_KEY_CFBundleVersion = 1;
 				INFOPLIST_KEY_CFBundleDisplayName = "Dual N-Back";
 				INFOPLIST_KEY_CFBundleName = "Dual N-Back";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -341,6 +343,8 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleShortVersionString = 1.0.0;
+				INFOPLIST_KEY_CFBundleVersion = 1;
 				INFOPLIST_KEY_CFBundleDisplayName = "Dual N-Back";
 				INFOPLIST_KEY_CFBundleName = "Dual N-Back";
 				LD_RUNPATH_SEARCH_PATHS = (

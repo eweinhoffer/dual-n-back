@@ -8,20 +8,38 @@ private enum StreamSeries: String {
     case audio = "Auditory"
 }
 
-private struct ChartPoint: Identifiable {
+private enum StatisticsChartTab: String, CaseIterable, Identifiable {
+    case rawScores = "Raw Scores"
+    case nLevel = "N-Level"
+
+    var id: String { rawValue }
+}
+
+private struct RawScoreChartPoint: Identifiable {
     let id: String
     let sessionIndex: Int
     let accuracy: Double
     let series: StreamSeries
 }
 
+private struct DailyNLevelPoint: Identifiable {
+    let dayIndex: Int
+    let day: Date
+    let averageNLevel: Double
+    let sessionCount: Int
+
+    var id: Int { dayIndex }
+}
+
 struct StatisticsView: View {
     @Environment(\.dismiss) private var dismiss
     let onClearStatistics: () -> Void
     private let sortedSessions: [SessionScore]
-    private let chartPoints: [ChartPoint]
+    private let rawScoreChartPoints: [RawScoreChartPoint]
+    private let dailyNLevelPoints: [DailyNLevelPoint]
     @State private var showClearConfirmation = false
     @State private var exportStatusMessage = ""
+    @State private var selectedChartTab: StatisticsChartTab = .rawScores
 
     private static let csvTimestampFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -36,11 +54,13 @@ struct StatisticsView: View {
         return formatter
     }()
 
+    private let chartSectionHeight: CGFloat = 270
+
     init(sessions: [SessionScore], onClearStatistics: @escaping () -> Void) {
         self.onClearStatistics = onClearStatistics
         self.sortedSessions = sessions.sorted { $0.completedAt < $1.completedAt }
 
-        var points: [ChartPoint] = []
+        var points: [RawScoreChartPoint] = []
         points.reserveCapacity(self.sortedSessions.count * 2)
         for (index, session) in sortedSessions.enumerated() {
             let sessionIndex = index + 1
@@ -61,7 +81,28 @@ struct StatisticsView: View {
                 )
             )
         }
-        self.chartPoints = points
+        self.rawScoreChartPoints = points
+
+        let calendar = Calendar.autoupdatingCurrent
+        let sessionsByDay = Dictionary(grouping: self.sortedSessions) { session in
+            calendar.startOfDay(for: session.completedAt)
+        }
+        self.dailyNLevelPoints = sessionsByDay.keys.sorted().enumerated().compactMap { offset, day in
+            guard let daySessions = sessionsByDay[day], !daySessions.isEmpty else {
+                return nil
+            }
+
+            let totalNLevel = daySessions.reduce(0.0) { partialResult, session in
+                partialResult + Double(session.startN)
+            }
+
+            return DailyNLevelPoint(
+                dayIndex: offset + 1,
+                day: day,
+                averageNLevel: totalNLevel / Double(daySessions.count),
+                sessionCount: daySessions.count
+            )
+        }
     }
 
     private var savedStatusText: String {
@@ -69,6 +110,39 @@ struct StatisticsView: View {
             return "Saved locally, no sessions yet."
         }
         return "Saved locally, last updated at \(lastUpdatedAt.formatted(.dateTime.year().month().day().hour().minute()))."
+    }
+
+    private var nLevelChartDomain: ClosedRange<Double> {
+        guard
+            let minValue = dailyNLevelPoints.map(\.averageNLevel).min(),
+            let maxValue = dailyNLevelPoints.map(\.averageNLevel).max()
+        else {
+            return 1.0...2.0
+        }
+
+        let lowerBound = max(1.0, floor((minValue - 0.5) * 2.0) / 2.0)
+        let upperBound = max(lowerBound + 1.0, ceil((maxValue + 0.5) * 2.0) / 2.0)
+        return lowerBound...upperBound
+    }
+
+    private var nLevelAxisMarks: [Int] {
+        guard !dailyNLevelPoints.isEmpty else { return [] }
+
+        let desiredLabelCount = min(max(dailyNLevelPoints.count, 2), 7)
+        let step = max(1, Int(ceil(Double(dailyNLevelPoints.count - 1) / Double(max(desiredLabelCount - 1, 1)))))
+
+        var indices = Array(stride(from: 1, through: dailyNLevelPoints.count, by: step))
+        if indices.last != dailyNLevelPoints.count {
+            indices.append(dailyNLevelPoints.count)
+        }
+        return indices
+    }
+
+    private func dayLabel(for index: Int) -> String {
+        guard let point = dailyNLevelPoints.first(where: { $0.dayIndex == index }) else {
+            return ""
+        }
+        return point.day.formatted(.dateTime.month(.abbreviated).day())
     }
 
     var body: some View {
@@ -80,36 +154,26 @@ struct StatisticsView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
+            Picker("Statistics Chart", selection: $selectedChartTab) {
+                ForEach(StatisticsChartTab.allCases) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+
             if sortedSessions.isEmpty {
                 Text("No saved sessions yet. Complete a run to create your first entry.")
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 8)
             } else {
-                Chart {
-                    ForEach(chartPoints) { point in
-                        LineMark(
-                            x: .value("Session", point.sessionIndex),
-                            y: .value("Accuracy", point.accuracy),
-                            series: .value("Stream", point.series.rawValue)
-                        )
-                        .foregroundStyle(by: .value("Stream", point.series.rawValue))
-                    }
-
-                    ForEach(chartPoints) { point in
-                        PointMark(
-                            x: .value("Session", point.sessionIndex),
-                            y: .value("Accuracy", point.accuracy)
-                        )
-                        .foregroundStyle(by: .value("Stream", point.series.rawValue))
+                Group {
+                    switch selectedChartTab {
+                    case .rawScores:
+                        rawScoresChart
+                    case .nLevel:
+                        nLevelChart
                     }
                 }
-                .chartForegroundStyleScale([
-                    StreamSeries.visual.rawValue: Color.blue,
-                    StreamSeries.audio.rawValue: Color.green,
-                ])
-                .chartYScale(domain: 0...100)
-                .chartLegend(position: .top, alignment: .leading)
-                .frame(height: 220)
 
                 List(sortedSessions.reversed()) { session in
                     HStack(spacing: 16) {
@@ -126,7 +190,7 @@ struct StatisticsView: View {
                     }
                     .font(.system(.body, design: .monospaced))
                 }
-                .frame(minHeight: 240)
+                .frame(minHeight: 90, idealHeight: 220, maxHeight: .infinity)
             }
 
             HStack {
@@ -164,6 +228,91 @@ struct StatisticsView: View {
         } message: {
             Text("This deletes all saved session scores permanently.")
         }
+    }
+
+    private var rawScoresChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Chart {
+                ForEach(rawScoreChartPoints) { point in
+                    LineMark(
+                        x: .value("Session", point.sessionIndex),
+                        y: .value("Accuracy", point.accuracy),
+                        series: .value("Stream", point.series.rawValue)
+                    )
+                    .foregroundStyle(by: .value("Stream", point.series.rawValue))
+                }
+
+                ForEach(rawScoreChartPoints) { point in
+                    PointMark(
+                        x: .value("Session", point.sessionIndex),
+                        y: .value("Accuracy", point.accuracy)
+                    )
+                    .foregroundStyle(by: .value("Stream", point.series.rawValue))
+                }
+            }
+            .chartForegroundStyleScale([
+                StreamSeries.visual.rawValue: Color.blue,
+                StreamSeries.audio.rawValue: Color.green,
+            ])
+            .chartYScale(domain: 0...100)
+            .chartLegend(position: .top, alignment: .leading)
+            .frame(height: 220)
+
+            Text("Per-session visual and auditory accuracy for each completed run.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(height: chartSectionHeight, alignment: .top)
+    }
+
+    private var nLevelChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Chart {
+                ForEach(dailyNLevelPoints) { point in
+                    LineMark(
+                        x: .value("Day", point.dayIndex),
+                        y: .value("Average N-Level", point.averageNLevel)
+                    )
+                    .foregroundStyle(.orange)
+
+                    PointMark(
+                        x: .value("Day", point.dayIndex),
+                        y: .value("Average N-Level", point.averageNLevel)
+                    )
+                    .foregroundStyle(.orange)
+                    .annotation(position: .top, alignment: .center) {
+                        if point.sessionCount > 1 {
+                            Text("\(point.sessionCount)x")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .chartYScale(domain: nLevelChartDomain)
+            .chartXAxis {
+                AxisMarks(values: nLevelAxisMarks) { value in
+                    AxisGridLine()
+                    AxisTick()
+                    AxisValueLabel {
+                        if let index = value.as(Int.self) {
+                            Text(dayLabel(for: index))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading)
+            }
+            .frame(height: 220)
+
+            Text("Daily average of the N-level actually played that day. Each completed session contributes its start N, so two sessions at N=3 and N=4 on the same day plot as 3.5.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(height: chartSectionHeight, alignment: .top)
     }
 
     private func exportCSV() {
