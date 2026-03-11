@@ -1,9 +1,9 @@
 cask "dual-n-back" do
   arch arm: "arm64", intel: "x86_64"
 
-  version "1.0.0"
-  sha256 arm: "420a61a33895a9542a1ed9be1001ad1db24e792bc018e782941bcb240df23a55",
-         intel: "3b5171a83303c3b9d7dc716c709ae3475af8f29a8791fe65299996e5f4b36347"
+  version "1.1.0"
+  sha256 arm: "f521068a9923b1ea0a3db1145798fd4aceffff3689d3dfdf79725adc67061c1e",
+         intel: "965b46b042e24613cc7dc7b0a4e039216915dd1d0931bd4e89f162f165633b36"
 
   url "https://github.com/eweinhoffer/dual-n-back/releases/download/v#{version}/Dual-N-Back-macOS-unsigned-#{arch}.zip"
   name "Dual N-Back"
