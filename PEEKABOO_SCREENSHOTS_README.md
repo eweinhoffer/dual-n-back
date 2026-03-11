@@ -9,6 +9,8 @@ Default output folder:
 
 Default files:
 - `main.png`
+- `help.png`
+- `settings.png`
 - `statistics.png`
 
 ## Requirements
@@ -63,6 +65,8 @@ Use a custom output folder if you want to keep a separate capture set:
 - Opens `Dual N-Back.app`
 - Sizes the main window to the project default
 - Captures the main window
+- Opens and captures the Help sheet
+- Opens and captures the Settings sheet
 - Opens and captures the Statistics window
 - Saves PNG files to `docs/screenshots/latest/` by default
 

@@ -93,7 +93,7 @@ struct StatisticsView: View {
             }
 
             let totalNLevel = daySessions.reduce(0.0) { partialResult, session in
-                partialResult + Double(session.startN)
+                partialResult + Double(session.endN)
             }
 
             return DailyNLevelPoint(
@@ -307,7 +307,7 @@ struct StatisticsView: View {
             }
             .frame(height: 220)
 
-            Text("Daily average of the N-level actually played that day. Each completed session contributes its start N, so two sessions at N=3 and N=4 on the same day plot as 3.5.")
+            Text("Daily average of the N-level reached by the end of each session. Two sessions that finish at N=3 and N=4 on the same day plot as 3.5.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)

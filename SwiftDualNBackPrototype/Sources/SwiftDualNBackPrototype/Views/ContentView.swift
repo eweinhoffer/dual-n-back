@@ -111,7 +111,11 @@ struct ContentView: View {
         .background(
             KeyCaptureView(
                 onF: { game.registerPositionAction() },
-                onJ: { game.registerAudioAction() }
+                onJ: { game.registerAudioAction() },
+                onEnter: {
+                    guard game.showResultPopup else { return }
+                    game.showResultPopup = false
+                }
             )
         )
         .sheet(isPresented: $showHelp) {
@@ -137,6 +141,7 @@ struct ContentView: View {
                     game.showResultPopup = false
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
             }
             .padding(28)
             .frame(minWidth: 640, minHeight: 320)

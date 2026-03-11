@@ -17,8 +17,12 @@ targets:
       base:
         PRODUCT_NAME: "Dual N-Back"
         GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_KEY_CFBundleDisplayName: "Dual N-Back"
         INFOPLIST_KEY_CFBundleName: "Dual N-Back"
+        INFOPLIST_KEY_CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        INFOPLIST_KEY_CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ""
