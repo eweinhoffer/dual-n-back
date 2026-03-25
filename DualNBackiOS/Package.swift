@@ -6,9 +6,13 @@ let package = Package(
     platforms: [
         .iOS(.v16),
     ],
+    dependencies: [
+        .package(path: "../DualNBackCore"),
+    ],
     targets: [
         .executableTarget(
             name: "DualNBackiOS",
+            dependencies: ["DualNBackCore"],
             path: "Sources/DualNBackiOS"
         ),
     ]

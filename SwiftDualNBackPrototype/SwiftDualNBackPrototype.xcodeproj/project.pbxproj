@@ -9,12 +9,10 @@
 /* Begin PBXBuildFile section */
 		1AAD78D8D6B56DE1CC23B3A6 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29B3DD27570009D3113EB9A2 /* SettingsView.swift */; };
 		2B452FC9425C19D0267C593C /* KeyCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E28E064C81ED5FF4121230 /* KeyCaptureView.swift */; };
-		478D6C5362BB1404F237B02B /* GameEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5490A9BE733332F197991C38 /* GameEngine.swift */; };
 		66E92DC66012E8242A7F1C2B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 98A72CAC9016BC2D64AA9EEE /* Assets.xcassets */; };
-		7C5DD0E103DC2906A5C698B4 /* SessionScore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB516EC989435994FCD86480 /* SessionScore.swift */; };
-		7D1E4380ADB1C4C7880382E8 /* StatisticsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96EA4CC2D4BF2A25FC84396C /* StatisticsStore.swift */; };
 		97A73182443ED023BC8156CE /* DualNBackPrototypeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED658EF0A7C49F4A48C53A69 /* DualNBackPrototypeApp.swift */; };
 		BC2566E27A60B4676957EFF1 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5529ADD49C893361FB05048 /* HelpView.swift */; };
+		E434BFD4E56C4F7ABD1842B5 /* DualNBackCore in Frameworks */ = {isa = PBXBuildFile; productRef = 047B81CF29BD37C64B95542E /* DualNBackCore */; };
 		F2D93A47ED0AB4489D963023 /* StatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE5EA2A7E39CF520FAAEB71 /* StatisticsView.swift */; };
 		F64ADD6428286394A0CD55FA /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD968DB2CBDA4003AF1B9A4C /* main.swift */; };
 		F70AF6DDE03CF4881B9A53F4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36AF83C3D70D92C1230407CB /* ContentView.swift */; };
@@ -24,27 +22,41 @@
 		29B3DD27570009D3113EB9A2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		36AF83C3D70D92C1230407CB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4AE5EA2A7E39CF520FAAEB71 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
-		5490A9BE733332F197991C38 /* GameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameEngine.swift; sourceTree = "<group>"; };
-		96EA4CC2D4BF2A25FC84396C /* StatisticsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsStore.swift; sourceTree = "<group>"; };
+		86B24B986D72689FF546A1B6 /* DualNBackCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DualNBackCore; path = ../DualNBackCore; sourceTree = SOURCE_ROOT; };
 		98A72CAC9016BC2D64AA9EEE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A03981288942D4CA639F4AEC /* SwiftDualNBackPrototype.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftDualNBackPrototype.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B5529ADD49C893361FB05048 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		D1E28E064C81ED5FF4121230 /* KeyCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCaptureView.swift; sourceTree = "<group>"; };
 		DD968DB2CBDA4003AF1B9A4C /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		EB516EC989435994FCD86480 /* SessionScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionScore.swift; sourceTree = "<group>"; };
 		ED658EF0A7C49F4A48C53A69 /* DualNBackPrototypeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DualNBackPrototypeApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		A7157CF1F6F36530544C8616 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E434BFD4E56C4F7ABD1842B5 /* DualNBackCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
+		0BE479E4BB4415A18E617958 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				86B24B986D72689FF546A1B6 /* DualNBackCore */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
 		15D5931660BBC75B3415A1A1 /* SwiftDualNBackPrototype */ = {
 			isa = PBXGroup;
 			children = (
 				98A72CAC9016BC2D64AA9EEE /* Assets.xcassets */,
 				ED658EF0A7C49F4A48C53A69 /* DualNBackPrototypeApp.swift */,
 				DD968DB2CBDA4003AF1B9A4C /* main.swift */,
-				EAD0B7D7E12D962EE85090BF /* Engine */,
-				688E96B885AA6830142843DA /* Models */,
-				5C54FA9487893902A3B034E5 /* Storage */,
 				90C22699C993BE500E5EEAC1 /* Views */,
 			);
 			name = SwiftDualNBackPrototype;
@@ -54,25 +66,10 @@
 		54FA48C82A48B7C97587B08C = {
 			isa = PBXGroup;
 			children = (
+				0BE479E4BB4415A18E617958 /* Packages */,
 				15D5931660BBC75B3415A1A1 /* SwiftDualNBackPrototype */,
 				85A2FC597318811E16399DA2 /* Products */,
 			);
-			sourceTree = "<group>";
-		};
-		5C54FA9487893902A3B034E5 /* Storage */ = {
-			isa = PBXGroup;
-			children = (
-				96EA4CC2D4BF2A25FC84396C /* StatisticsStore.swift */,
-			);
-			path = Storage;
-			sourceTree = "<group>";
-		};
-		688E96B885AA6830142843DA /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				EB516EC989435994FCD86480 /* SessionScore.swift */,
-			);
-			path = Models;
 			sourceTree = "<group>";
 		};
 		85A2FC597318811E16399DA2 /* Products */ = {
@@ -95,14 +92,6 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-		EAD0B7D7E12D962EE85090BF /* Engine */ = {
-			isa = PBXGroup;
-			children = (
-				5490A9BE733332F197991C38 /* GameEngine.swift */,
-			);
-			path = Engine;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -112,6 +101,7 @@
 			buildPhases = (
 				B9555AD2B7CCF1DAC9B6D13F /* Sources */,
 				F02F423BAE192E0487361E03 /* Resources */,
+				A7157CF1F6F36530544C8616 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -119,6 +109,7 @@
 			);
 			name = SwiftDualNBackPrototype;
 			packageProductDependencies = (
+				047B81CF29BD37C64B95542E /* DualNBackCore */,
 			);
 			productName = SwiftDualNBackPrototype;
 			productReference = A03981288942D4CA639F4AEC /* SwiftDualNBackPrototype.app */;
@@ -149,6 +140,9 @@
 			);
 			mainGroup = 54FA48C82A48B7C97587B08C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				6086223A145192DCDBAD19D3 /* XCLocalSwiftPackageReference "../DualNBackCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
@@ -176,12 +170,9 @@
 			files = (
 				F70AF6DDE03CF4881B9A53F4 /* ContentView.swift in Sources */,
 				97A73182443ED023BC8156CE /* DualNBackPrototypeApp.swift in Sources */,
-				478D6C5362BB1404F237B02B /* GameEngine.swift in Sources */,
 				BC2566E27A60B4676957EFF1 /* HelpView.swift in Sources */,
 				2B452FC9425C19D0267C593C /* KeyCaptureView.swift in Sources */,
-				7C5DD0E103DC2906A5C698B4 /* SessionScore.swift in Sources */,
 				1AAD78D8D6B56DE1CC23B3A6 /* SettingsView.swift in Sources */,
-				7D1E4380ADB1C4C7880382E8 /* StatisticsStore.swift in Sources */,
 				F2D93A47ED0AB4489D963023 /* StatisticsView.swift in Sources */,
 				F64ADD6428286394A0CD55FA /* main.swift in Sources */,
 			);
@@ -264,10 +255,10 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleShortVersionString = 1.1.0;
-				INFOPLIST_KEY_CFBundleVersion = 1;
 				INFOPLIST_KEY_CFBundleDisplayName = "Dual N-Back";
 				INFOPLIST_KEY_CFBundleName = "Dual N-Back";
+				INFOPLIST_KEY_CFBundleShortVersionString = "$(MARKETING_VERSION)";
+				INFOPLIST_KEY_CFBundleVersion = "$(CURRENT_PROJECT_VERSION)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -346,10 +337,10 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleShortVersionString = 1.1.0;
-				INFOPLIST_KEY_CFBundleVersion = 1;
 				INFOPLIST_KEY_CFBundleDisplayName = "Dual N-Back";
 				INFOPLIST_KEY_CFBundleName = "Dual N-Back";
+				INFOPLIST_KEY_CFBundleShortVersionString = "$(MARKETING_VERSION)";
+				INFOPLIST_KEY_CFBundleVersion = "$(CURRENT_PROJECT_VERSION)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -383,6 +374,20 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		6086223A145192DCDBAD19D3 /* XCLocalSwiftPackageReference "../DualNBackCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../DualNBackCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		047B81CF29BD37C64B95542E /* DualNBackCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DualNBackCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 3849CA9F1F4EEFDE70347298 /* Project object */;
 }

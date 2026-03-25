@@ -7,12 +7,17 @@ settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: io.dualnback.ios
     SWIFT_VERSION: 5.10
+packages:
+  DualNBackCore:
+    path: ../DualNBackCore
 targets:
   DualNBackiOS:
     type: application
     platform: iOS
     sources:
       - Sources/DualNBackiOS
+    dependencies:
+      - package: DualNBackCore
     settings:
       base:
         PRODUCT_NAME: "Dual N-Back"

@@ -1,4 +1,5 @@
 import Charts
+import DualNBackCore
 import SwiftUI
 
 private enum StreamSeries: String {
@@ -32,12 +33,15 @@ private struct DailyNLevelPoint: Identifiable {
 struct StatisticsView: View {
     @Environment(\.dismiss) private var dismiss
     let onClearStatistics: () -> Void
+    let onCopyStats: () -> Int
+    let onPasteStats: () -> GameEngine.PasteResult
     private let sortedSessions: [SessionScore]
     private let rawScoreChartPoints: [RawScoreChartPoint]
     private let dailyNLevelPoints: [DailyNLevelPoint]
     @State private var showClearConfirmation = false
     @State private var selectedChartTab: StatisticsChartTab = .rawScores
     @State private var csvShareURL: URL? = nil
+    @State private var clipboardStatusMessage = ""
 
     private static let csvTimestampFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -52,8 +56,15 @@ struct StatisticsView: View {
         return f
     }()
 
-    init(sessions: [SessionScore], onClearStatistics: @escaping () -> Void) {
+    init(
+        sessions: [SessionScore],
+        onClearStatistics: @escaping () -> Void,
+        onCopyStats: @escaping () -> Int,
+        onPasteStats: @escaping () -> GameEngine.PasteResult
+    ) {
         self.onClearStatistics = onClearStatistics
+        self.onCopyStats = onCopyStats
+        self.onPasteStats = onPasteStats
         self.sortedSessions = sessions.sorted { $0.completedAt < $1.completedAt }
 
         var points: [RawScoreChartPoint] = []
@@ -149,7 +160,15 @@ struct StatisticsView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { pasteStats() } label: {
+                        Image(systemName: "doc.on.clipboard")
+                    }
+
                     if !sortedSessions.isEmpty {
+                        Button { copyStats() } label: {
+                            Image(systemName: "doc.on.doc")
+                        }
+
                         if let shareURL = csvShareURL {
                             ShareLink(item: shareURL) {
                                 Image(systemName: "square.and.arrow.up")
@@ -171,14 +190,21 @@ struct StatisticsView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                if !sortedSessions.isEmpty {
-                    Text(savedStatusText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity)
-                        .background(.bar)
+                VStack(spacing: 4) {
+                    if !clipboardStatusMessage.isEmpty {
+                        Text(clipboardStatusMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !sortedSessions.isEmpty {
+                        Text(savedStatusText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(.bar)
             }
             .alert("Erase all score history?", isPresented: $showClearConfirmation) {
                 Button("Erase", role: .destructive) { onClearStatistics() }
@@ -266,6 +292,31 @@ struct StatisticsView: View {
         let lower = max(1.0, floor((minValue - 0.5) * 2) / 2)
         let upper = max(lower + 1.0, ceil((maxValue + 0.5) * 2) / 2)
         return lower...upper
+    }
+
+    // MARK: - Clipboard Transfer
+
+    private func copyStats() {
+        let count = onCopyStats()
+        clipboardStatusMessage = count > 0
+            ? "Copied \(count) sessions to clipboard."
+            : "No sessions to copy."
+    }
+
+    private func pasteStats() {
+        let result = onPasteStats()
+        switch result {
+        case .success(let newCount, let duplicateCount):
+            if newCount > 0 {
+                clipboardStatusMessage = "Merged \(newCount) new sessions (\(duplicateCount) duplicates skipped)."
+            } else {
+                clipboardStatusMessage = "No new sessions found (\(duplicateCount) duplicates skipped)."
+            }
+        case .noData:
+            clipboardStatusMessage = "Nothing on clipboard to paste."
+        case .invalidFormat:
+            clipboardStatusMessage = "Clipboard does not contain valid stats data."
+        }
     }
 
     // MARK: - CSV Export

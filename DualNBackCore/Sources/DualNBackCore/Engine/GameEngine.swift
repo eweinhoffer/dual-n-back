@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 
 @MainActor
-final class GameEngine: NSObject, ObservableObject {
+public final class GameEngine: NSObject, ObservableObject {
     private let playableGridIndices = [0, 1, 2, 3, 5, 6, 7, 8]
     private let letterPool: [Character] = Array("BFHJKLQR")
     private lazy var positionAlternatives: [[Int]] = {
@@ -21,25 +21,25 @@ final class GameEngine: NSObject, ObservableObject {
     private let cycleSeconds: TimeInterval = 3.0
     private let countdownStartDelaySeconds: TimeInterval = 3.5
 
-    @Published var nLevel: Int = 2
-    @Published var isRunning = false
-    @Published var isPreparingStart = false
-    @Published var trialIndex = -1
-    @Published var currentPosition: Int? = nil // 0...7 ring index
-    @Published var statusText = ""
-    @Published var didCompleteSession = false
-    @Published var resultSummaryText = ""
-    @Published var showResultPopup = false
-    @Published var visualButtonActive = false
-    @Published var audioButtonActive = false
+    @Published public var nLevel: Int = 2
+    @Published public var isRunning = false
+    @Published public var isPreparingStart = false
+    @Published public var trialIndex = -1
+    @Published public var currentPosition: Int? = nil
+    @Published public var statusText = ""
+    @Published public var didCompleteSession = false
+    @Published public var resultSummaryText = ""
+    @Published public var showResultPopup = false
+    @Published public var visualButtonActive = false
+    @Published public var audioButtonActive = false
 
-    @Published var posHits = 0
-    @Published var posMisses = 0
-    @Published var posFalse = 0
-    @Published var audHits = 0
-    @Published var audMisses = 0
-    @Published var audFalse = 0
-    @Published private(set) var statisticsHistory: [SessionScore] = []
+    @Published public var posHits = 0
+    @Published public var posMisses = 0
+    @Published public var posFalse = 0
+    @Published public var audHits = 0
+    @Published public var audMisses = 0
+    @Published public var audFalse = 0
+    @Published public private(set) var statisticsHistory: [SessionScore] = []
 
     private var plannedTrials: [(position: Int, letter: Character)] = []
     private var responses: [(pos: Bool, aud: Bool)] = []
@@ -54,21 +54,35 @@ final class GameEngine: NSObject, ObservableObject {
     private lazy var preferredSpeechVoice: AVSpeechSynthesisVoice? = resolvePreferredVoice()
     private let historyStore = StatisticsStore()
 
-    override init() {
+    public override init() {
         super.init()
+        #if os(iOS)
+        configureAudioSession()
+        #endif
         loadHistory()
     }
 
-    var totalTrials: Int {
+    #if os(iOS)
+    private func configureAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            // Non-fatal: speech may not play when the silent switch is on
+        }
+    }
+    #endif
+
+    public var totalTrials: Int {
         20 + nLevel
     }
 
-    var currentDisplayIndex: Int? {
+    public var currentDisplayIndex: Int? {
         guard let currentPosition else { return nil }
         return playableGridIndices[currentPosition]
     }
 
-    func start() {
+    public func start() {
         if isRunning || isPreparingStart { return }
         if nLevel < 1 { nLevel = 1 }
 
@@ -83,7 +97,7 @@ final class GameEngine: NSObject, ObservableObject {
         beginCountdownAndStart()
     }
 
-    func stop() {
+    public func stop() {
         cycleTimer?.invalidate()
         hideTimer?.invalidate()
         clearCountdown()
@@ -96,19 +110,50 @@ final class GameEngine: NSObject, ObservableObject {
         isPreparingStart = false
     }
 
-    func registerPositionAction() {
+    public func registerPositionAction() {
         guard isRunning, let idx = awaitingResponseFor else { return }
         flashVisualButton()
         responses[idx].pos = true
     }
 
-    func registerAudioAction() {
+    public func registerAudioAction() {
         guard isRunning, let idx = awaitingResponseFor else { return }
         flashAudioButton()
         responses[idx].aud = true
     }
 
-    func clearStatisticsHistory() {
+    // MARK: - Clipboard Transfer
+
+    public enum PasteResult {
+        case success(newCount: Int, duplicateCount: Int)
+        case noData
+        case invalidFormat
+    }
+
+    public func copyStatsToClipboard() -> Int {
+        guard let data = historyStore.encodeForTransfer(statisticsHistory) else { return 0 }
+        ClipboardHelper.copyToClipboard(data)
+        return statisticsHistory.count
+    }
+
+    public func pasteStatsFromClipboard() -> PasteResult {
+        guard let data = ClipboardHelper.readFromClipboard() else {
+            return .noData
+        }
+        guard let incomingSessions = historyStore.decodeFromTransfer(data) else {
+            return .invalidFormat
+        }
+        let result = historyStore.merge(existing: statisticsHistory, incoming: incomingSessions)
+        statisticsHistory = result.merged
+        do {
+            try historyStore.save(statisticsHistory)
+        } catch {
+            statusText = "Sessions merged but could not save. \(error.localizedDescription)"
+        }
+        return .success(newCount: result.newCount, duplicateCount: result.duplicateCount)
+    }
+
+    public func clearStatisticsHistory() {
         do {
             try historyStore.clear()
             statisticsHistory.removeAll()
@@ -142,9 +187,7 @@ final class GameEngine: NSObject, ObservableObject {
 
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: stimulusOnSeconds, repeats: false) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.currentPosition = nil
-            }
+            Task { @MainActor in self?.currentPosition = nil }
         }
     }
 
@@ -169,9 +212,7 @@ final class GameEngine: NSObject, ObservableObject {
             self.statusText = "Game running."
             self.runTrial()
             self.cycleTimer = Timer.scheduledTimer(withTimeInterval: self.cycleSeconds, repeats: true) { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.runTrial()
-                }
+                Task { @MainActor in self?.runTrial() }
             }
             self.cycleTimer?.tolerance = 0.02
         }
@@ -188,7 +229,7 @@ final class GameEngine: NSObject, ObservableObject {
         let trials = totalTrials
         if trials <= nLevel { return false }
 
-        let opportunities = Array(nLevel..<trials) // Always 20 slots by design.
+        let opportunities = Array(nLevel..<trials)
         if opportunities.count < 10 { return false }
 
         let bothCount = 2
@@ -278,6 +319,7 @@ final class GameEngine: NSObject, ObservableObject {
 
     private func resolvePreferredVoice() -> AVSpeechSynthesisVoice? {
         let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "en-US" }
+        #if os(macOS)
         if #available(macOS 13.0, *) {
             if let premium = voices.first(where: { $0.quality == .premium }) {
                 return premium
@@ -292,6 +334,17 @@ final class GameEngine: NSObject, ObservableObject {
         if let samantha = AVSpeechSynthesisVoice(identifier: "com.apple.voice.compact.en-US.Samantha") {
             return samantha
         }
+        #else
+        if let premium = voices.first(where: { $0.quality == .premium }) {
+            return premium
+        }
+        if let enhanced = voices.first(where: { $0.quality == .enhanced }) {
+            return enhanced
+        }
+        if let ava = AVSpeechSynthesisVoice(identifier: "com.apple.voice.enhanced.en-US.Ava") {
+            return ava
+        }
+        #endif
         return AVSpeechSynthesisVoice(language: "en-US")
     }
 
@@ -360,7 +413,7 @@ final class GameEngine: NSObject, ObservableObject {
         appendSessionToHistory(session)
 
         let resultText = String(
-            format: "Finished. Visual %.1f%%, Audio %.1f%%, Avg %.1f%%. N: %d -> %d",
+            format: "Finished. Visual %.1f%%, Audio %.1f%%, Avg %.1f%%. N: %d \u{2192} %d",
             posAccuracy,
             audAccuracy,
             averageAccuracy,

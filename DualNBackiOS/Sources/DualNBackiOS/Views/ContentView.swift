@@ -1,3 +1,4 @@
+import DualNBackCore
 import SwiftUI
 
 struct ContentView: View {
@@ -76,7 +77,9 @@ struct ContentView: View {
         .sheet(isPresented: $showStatistics) {
             StatisticsView(
                 sessions: game.statisticsHistory,
-                onClearStatistics: { game.clearStatisticsHistory() }
+                onClearStatistics: { game.clearStatisticsHistory() },
+                onCopyStats: { game.copyStatsToClipboard() },
+                onPasteStats: { game.pasteStatsFromClipboard() }
             )
         }
         .sheet(isPresented: $game.showResultPopup) {

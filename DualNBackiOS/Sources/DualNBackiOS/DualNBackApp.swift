@@ -1,3 +1,4 @@
+import DualNBackCore
 import SwiftUI
 
 @main

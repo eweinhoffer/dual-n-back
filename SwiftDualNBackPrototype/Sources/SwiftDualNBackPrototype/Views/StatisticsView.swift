@@ -1,5 +1,6 @@
 import AppKit
 import Charts
+import DualNBackCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -34,6 +35,8 @@ private struct DailyNLevelPoint: Identifiable {
 struct StatisticsView: View {
     @Environment(\.dismiss) private var dismiss
     let onClearStatistics: () -> Void
+    let onCopyStats: () -> Int
+    let onPasteStats: () -> GameEngine.PasteResult
     private let sortedSessions: [SessionScore]
     private let rawScoreChartPoints: [RawScoreChartPoint]
     private let dailyNLevelPoints: [DailyNLevelPoint]
@@ -56,8 +59,15 @@ struct StatisticsView: View {
 
     private let chartSectionHeight: CGFloat = 270
 
-    init(sessions: [SessionScore], onClearStatistics: @escaping () -> Void) {
+    init(
+        sessions: [SessionScore],
+        onClearStatistics: @escaping () -> Void,
+        onCopyStats: @escaping () -> Int,
+        onPasteStats: @escaping () -> GameEngine.PasteResult
+    ) {
         self.onClearStatistics = onClearStatistics
+        self.onCopyStats = onCopyStats
+        self.onPasteStats = onPasteStats
         self.sortedSessions = sessions.sorted { $0.completedAt < $1.completedAt }
 
         var points: [RawScoreChartPoint] = []
@@ -199,6 +209,15 @@ struct StatisticsView: View {
                 }
                 .disabled(sortedSessions.isEmpty)
 
+                Button("Copy Stats") {
+                    copyStats()
+                }
+                .disabled(sortedSessions.isEmpty)
+
+                Button("Paste Stats") {
+                    pasteStats()
+                }
+
                 Button("Clear Statistics Data", role: .destructive) {
                     showClearConfirmation = true
                 }
@@ -313,6 +332,29 @@ struct StatisticsView: View {
                 .lineLimit(2)
         }
         .frame(height: chartSectionHeight, alignment: .top)
+    }
+
+    private func copyStats() {
+        let count = onCopyStats()
+        exportStatusMessage = count > 0
+            ? "Copied \(count) sessions to clipboard."
+            : "No sessions to copy."
+    }
+
+    private func pasteStats() {
+        let result = onPasteStats()
+        switch result {
+        case .success(let newCount, let duplicateCount):
+            if newCount > 0 {
+                exportStatusMessage = "Merged \(newCount) new sessions (\(duplicateCount) duplicates skipped)."
+            } else {
+                exportStatusMessage = "No new sessions found (\(duplicateCount) duplicates skipped)."
+            }
+        case .noData:
+            exportStatusMessage = "Nothing on clipboard to paste."
+        case .invalidFormat:
+            exportStatusMessage = "Clipboard does not contain valid stats data."
+        }
     }
 
     private func exportCSV() {

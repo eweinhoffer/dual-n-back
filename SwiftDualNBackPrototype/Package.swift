@@ -7,9 +7,13 @@ let package = Package(
     products: [
         .executable(name: "SwiftDualNBackPrototype", targets: ["SwiftDualNBackPrototype"]),
     ],
+    dependencies: [
+        .package(path: "../DualNBackCore"),
+    ],
     targets: [
         .executableTarget(
             name: "SwiftDualNBackPrototype",
+            dependencies: ["DualNBackCore"],
             path: "Sources/SwiftDualNBackPrototype",
             exclude: ["Assets.xcassets"]
         ),

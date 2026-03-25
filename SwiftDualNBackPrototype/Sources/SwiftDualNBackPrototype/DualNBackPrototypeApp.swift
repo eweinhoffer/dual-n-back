@@ -1,3 +1,4 @@
+import DualNBackCore
 import SwiftUI
 
 struct DualNBackPrototypeApp: App {
@@ -14,7 +15,9 @@ struct DualNBackPrototypeApp: App {
         Window("Statistics", id: "statistics") {
             StatisticsView(
                 sessions: game.statisticsHistory,
-                onClearStatistics: { game.clearStatisticsHistory() }
+                onClearStatistics: { game.clearStatisticsHistory() },
+                onCopyStats: { game.copyStatsToClipboard() },
+                onPasteStats: { game.pasteStatsFromClipboard() }
             )
         }
         .windowResizability(.automatic)

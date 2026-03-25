@@ -17,3 +17,7 @@ Dual N-Back.app/
 
 # Local release workflow scratch output
 dist/
+
+# Local project context (personal paths, session notes)
+CLAUDE.md
+WORKLOG.md
