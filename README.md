@@ -2,6 +2,80 @@
 
 A native macOS dual n-back app built with SwiftUI.
 
+## Project Snapshot
+
+- Current app version in the Xcode project: `1.1.0`
+- Current shape of the project: native SwiftUI macOS app, local-first data storage, GitHub Release packaging, Homebrew cask, and a small set of maintenance scripts
+- Current trust model: the app is still unsigned and not notarized, so release safety currently depends on checksums, optional signature files for the checksum manifest, and careful documentation
+- Main user goal: make dual n-back training feel simple on macOS without needing a browser, Electron app, or manual score tracking
+
+## What Exists Today
+
+- Main training window with a 3x3 ring, visual stimulus, spoken audio stimulus, and keyboard/button input
+- Adaptive difficulty where `N` can move up or down after a session based on average accuracy
+- Countdown before session start, clearer button states, resizable windows, and better general UX polish
+- Help sheet and settings sheet
+- Statistics window with saved history, charts, clear-history support, and CSV export
+- Local persistence for score history in `~/Library/Application Support/DualNBack/score_history.json`
+- Local build tooling, screenshot capture tooling, a GitHub release workflow, a Homebrew cask, and a local updater script
+
+## Maintainer Context
+
+This section is meant to answer, in plain English, "what have we already done, what did we learn, and what is left?"
+
+### What Has Been Done So Far
+
+- The project started as a Python dual n-back prototype.
+- The main app was then moved to a native SwiftUI macOS implementation.
+- A one-click Xcode project was added so the app could be opened and built more easily.
+- The game logic was updated to follow the intended dual n-back rules more closely, including adaptive progression.
+- The UX was improved with countdown timing, richer voice playback, better click targets, and resizable windows.
+- The app was made more "Dock-ready" by packaging it as a macOS app bundle instead of leaving it as only a development prototype.
+- Statistics tracking and settings persistence were added, which turned the app from "toy prototype" into something closer to a usable personal training app.
+- Project hygiene was improved by scrubbing local path references and anonymizing the bundle identifier.
+- Release automation was added so tagged releases can build artifacts, generate checksum files, optionally sign the checksum manifest, and publish assets to GitHub Releases.
+- Homebrew support was added and then backed by a smoke-test workflow so install instructions are less theoretical.
+- Screenshot tooling and documentation were added so the README and release docs can be refreshed more consistently.
+
+### Major Lessons Learned
+
+- Full Xcode matters. On macOS, Command Line Tools alone are not enough for a smooth app build experience, so the repo now checks for the full Xcode install first.
+- Native SwiftUI was the right direction for this project. It made the app feel more "real" on macOS and made packaging/distribution cleaner than staying with the original prototype approach.
+- Distribution is not just "build a ZIP." Because the app is unsigned and not notarized, the install story needed checksum verification, optional release-signature support, clearer Gatekeeper instructions, and safer updater behavior.
+- Small automation pays off fast. The release pipeline, cask update helper, screenshot script, and security scan reduce repetitive mistakes and make future releases less stressful.
+- Security needs active guardrails. This repo already shows that in a few ways: path-scrubbing, a repo security scan, optional release signing, and screenshot guidance that warns against accidentally capturing private information.
+- Persistence changes the shape of the product. Once session history, charts, and CSV export were added, the app shifted from "single-session trainer" to "something you can actually track progress with over time."
+
+### Current Goals
+
+- Keep the app simple and fast for personal dual n-back training on macOS.
+- Make installation easier for non-technical users through GitHub Releases and Homebrew.
+- Keep everything local-first for training data.
+- Improve release safety without overcomplicating the project.
+
+### Code Map
+
+- `SwiftDualNBackPrototype/Sources/SwiftDualNBackPrototype/Engine/GameEngine.swift`
+  Owns trial generation, countdown, timing, speech, scoring, adaptive `N`, and saving completed sessions.
+- `SwiftDualNBackPrototype/Sources/SwiftDualNBackPrototype/Views/ContentView.swift`
+  Main training window, controls, keyboard integration, and sheet/window launching.
+- `SwiftDualNBackPrototype/Sources/SwiftDualNBackPrototype/Views/StatisticsView.swift`
+  Saved-session list, charts, CSV export, and destructive clear-history action.
+- `SwiftDualNBackPrototype/Sources/SwiftDualNBackPrototype/Storage/StatisticsStore.swift`
+  Reads and writes score history JSON under Application Support.
+- `BUILD_DOCK_APP.command`
+  Main local build entry point, including SwiftPM fallback packaging if the Xcode build path fails.
+- `.github/workflows/release.yml`
+  Main release automation.
+
+### Next Steps Still Open
+
+- Code signing and notarization are still the biggest unfinished platform task. That would improve user trust and reduce Gatekeeper friction.
+- Automated tests are still light or absent. The app would benefit from tests around trial-plan generation, score calculation, and adaptive level changes.
+- The release pipeline is good, but it still depends on careful human release discipline. A short maintainer checklist could make releases even safer.
+- Screenshot assets should be kept tidy. There are currently untracked screenshot files in the working tree, which is harmless locally but worth cleaning before a release or commit.
+- If the project becomes more public-facing, it may make sense to split "user README" and "maintainer notes" into separate docs. For now, both are kept here for convenience.
+
 ## Screenshots
 
 ### Main
@@ -149,3 +223,4 @@ The built app appears at:
 
 - Screenshot workflow: `PEEKABOO_SCREENSHOTS_README.md`
 - Optional release-signing setup: `docs/RELEASE_SIGNING_SETUP.md`
+- Scripts and automation notes: `AUTOMATIONS_README.md`

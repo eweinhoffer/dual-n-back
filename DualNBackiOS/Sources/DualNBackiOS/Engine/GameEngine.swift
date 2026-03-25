@@ -56,7 +56,17 @@ final class GameEngine: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        configureAudioSession()
         loadHistory()
+    }
+
+    private func configureAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            // Non-fatal: speech may not play when the silent switch is on
+        }
     }
 
     var totalTrials: Int {
@@ -142,9 +152,7 @@ final class GameEngine: NSObject, ObservableObject {
 
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: stimulusOnSeconds, repeats: false) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.currentPosition = nil
-            }
+            Task { @MainActor in self?.currentPosition = nil }
         }
     }
 
@@ -169,9 +177,7 @@ final class GameEngine: NSObject, ObservableObject {
             self.statusText = "Game running."
             self.runTrial()
             self.cycleTimer = Timer.scheduledTimer(withTimeInterval: self.cycleSeconds, repeats: true) { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.runTrial()
-                }
+                Task { @MainActor in self?.runTrial() }
             }
             self.cycleTimer?.tolerance = 0.02
         }

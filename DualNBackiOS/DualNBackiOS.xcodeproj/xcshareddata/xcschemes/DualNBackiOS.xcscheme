@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "E10B1C2D3E4F5A6B7C8D9E0F"
-               BuildableName = "DualNBackiOS.app"
+               BuildableName = "Dual N-Back.app"
                BlueprintName = "DualNBackiOS"
                ReferencedContainer = "container:DualNBackiOS.xcodeproj">
             </BuildableReference>
@@ -44,7 +44,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "E10B1C2D3E4F5A6B7C8D9E0F"
-            BuildableName = "DualNBackiOS.app"
+            BuildableName = "Dual N-Back.app"
             BlueprintName = "DualNBackiOS"
             ReferencedContainer = "container:DualNBackiOS.xcodeproj">
          </BuildableReference>
@@ -61,7 +61,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "E10B1C2D3E4F5A6B7C8D9E0F"
-            BuildableName = "DualNBackiOS.app"
+            BuildableName = "Dual N-Back.app"
             BlueprintName = "DualNBackiOS"
             ReferencedContainer = "container:DualNBackiOS.xcodeproj">
          </BuildableReference>

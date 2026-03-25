@@ -65,10 +65,12 @@ struct SettingsView: View {
                     ColorPicker("Custom color", selection: Binding(
                         get: { currentColor },
                         set: { newColor in
-                            let resolved = newColor.resolve(in: EnvironmentValues())
-                            highlightRed = Double(resolved.red)
-                            highlightGreen = Double(resolved.green)
-                            highlightBlue = Double(resolved.blue)
+                            let uic = UIColor(newColor)
+                            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+                            uic.getRed(&r, green: &g, blue: &b, alpha: nil)
+                            highlightRed = Double(r)
+                            highlightGreen = Double(g)
+                            highlightBlue = Double(b)
                         }
                     ), supportsOpacity: false)
 
@@ -92,9 +94,10 @@ struct SettingsView: View {
     }
 
     private func isCurrentColor(_ color: Color) -> Bool {
-        let other = color.resolve(in: EnvironmentValues())
-        return abs(Double(other.red) - highlightRed) < 0.01
-            && abs(Double(other.green) - highlightGreen) < 0.01
-            && abs(Double(other.blue) - highlightBlue) < 0.01
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: nil)
+        return abs(Double(r) - highlightRed) < 0.01
+            && abs(Double(g) - highlightGreen) < 0.01
+            && abs(Double(b) - highlightBlue) < 0.01
     }
 }

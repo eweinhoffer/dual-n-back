@@ -127,11 +127,18 @@ struct StatisticsView: View {
                         }
                     }
                 } else {
-                    ContentUnavailableView(
-                        "No Sessions Yet",
-                        systemImage: "chart.line.uptrend.xyaxis",
-                        description: Text("Complete a run to create your first entry.")
-                    )
+                    VStack(spacing: 12) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.secondary)
+                        Text("No Sessions Yet")
+                            .font(.title3.bold())
+                        Text("Complete a run to create your first entry.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 60)
                     .listRowBackground(Color.clear)
                 }
             }
