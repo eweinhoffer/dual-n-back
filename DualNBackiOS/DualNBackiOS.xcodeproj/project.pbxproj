@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -26,7 +26,7 @@
 		B68A4781B82EAC380C1B5DCA /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
 		CE9882F458481FE55C9C5F82 /* GameGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameGridView.swift; sourceTree = "<group>"; };
 		E42B1047B810AC90B392F281 /* DualNBackApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DualNBackApp.swift; sourceTree = "<group>"; };
-		E4F112E47FB2441ECB6D0684 /* DualNBackiOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = DualNBackiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E4F112E47FB2441ECB6D0684 /* Dual N-Back.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Dual N-Back.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,7 +53,7 @@
 		7CCA8F138CDE6A2A129BD867 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E4F112E47FB2441ECB6D0684 /* DualNBackiOS.app */,
+				E4F112E47FB2441ECB6D0684 /* Dual N-Back.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -109,7 +109,7 @@
 				C0233B0B23B93B055B297314 /* DualNBackCore */,
 			);
 			productName = DualNBackiOS;
-			productReference = E4F112E47FB2441ECB6D0684 /* DualNBackiOS.app */;
+			productReference = E4F112E47FB2441ECB6D0684 /* Dual N-Back.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -122,7 +122,6 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					D831926E1C2EED5AC2515CF1 = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -140,7 +139,6 @@
 			packageReferences = (
 				5D97C727311F9C8B03955185 /* XCLocalSwiftPackageReference "../DualNBackCore" */,
 			);
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
