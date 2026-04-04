@@ -35,6 +35,17 @@ struct HelpView: View {
                     )
 
                     helpSection(
+                        title: "Syncing with Mac",
+                        items: [
+                            "The iPhone and Mac apps can share session history via Universal Clipboard.",
+                            "iPhone → Mac: tap Copy in the Statistics screen, then click Paste Stats in the Mac app's Statistics window.",
+                            "Mac → iPhone: click Copy Stats in the Mac app, then tap Paste in the iPhone Statistics screen.",
+                            "The system may ask permission the first time you paste on iPhone — tap Allow to proceed.",
+                            "Universal Clipboard may take 1–2 seconds. If Paste finds nothing, wait a moment and try again.",
+                        ]
+                    )
+
+                    helpSection(
                         title: "Timing",
                         items: [
                             "Stimulus visible: 0.5 seconds",

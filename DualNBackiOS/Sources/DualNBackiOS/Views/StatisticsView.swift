@@ -42,6 +42,8 @@ struct StatisticsView: View {
     @State private var selectedChartTab: StatisticsChartTab = .rawScores
     @State private var csvShareURL: URL? = nil
     @State private var clipboardStatusMessage = ""
+    @State private var selectedRawScoreIndex: Int? = nil
+    @State private var selectedNLevelIndex: Int? = nil
 
     private static let csvTimestampFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -160,14 +162,10 @@ struct StatisticsView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { pasteStats() } label: {
-                        Image(systemName: "doc.on.clipboard")
-                    }
+                    Button("Paste") { pasteStats() }
 
                     if !sortedSessions.isEmpty {
-                        Button { copyStats() } label: {
-                            Image(systemName: "doc.on.doc")
-                        }
+                        Button("Copy") { copyStats() }
 
                         if let shareURL = csvShareURL {
                             ShareLink(item: shareURL) {
@@ -236,6 +234,7 @@ struct StatisticsView: View {
                             y: .value("Accuracy", point.accuracy)
                         )
                         .foregroundStyle(by: .value("Stream", point.series.rawValue))
+                        .symbolSize(point.sessionIndex == selectedRawScoreIndex ? 120 : 50)
                     }
                 }
                 .chartForegroundStyleScale([
@@ -244,12 +243,35 @@ struct StatisticsView: View {
                 ])
                 .chartYScale(domain: 0...100)
                 .chartLegend(position: .top, alignment: .leading)
+                .chartOverlay { proxy in
+                    GeometryReader { geo in
+                        Rectangle().fill(.clear).contentShape(Rectangle())
+                            .gesture(
+                                SpatialTapGesture()
+                                    .onEnded { value in
+                                        let origin = geo[proxy.plotAreaFrame].origin
+                                        let x = value.location.x - origin.x
+                                        if let index = proxy.value(atX: x, as: Int.self) {
+                                            let clamped = min(max(index, 1), sortedSessions.count)
+                                            selectedRawScoreIndex = selectedRawScoreIndex == clamped ? nil : clamped
+                                        }
+                                    }
+                            )
+                    }
+                }
                 .frame(width: chartWidth, height: 200)
             }
 
-            Text("Per-session visual and auditory accuracy.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if let idx = selectedRawScoreIndex, idx >= 1, idx <= sortedSessions.count {
+                let session = sortedSessions[idx - 1]
+                Text("Session \(idx): \(session.completedAt.formatted(.dateTime.month(.abbreviated).day().year().hour().minute())) · V \(String(format: "%.1f%%", session.visualAccuracy)) · A \(String(format: "%.1f%%", session.audioAccuracy))")
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+            } else {
+                Text("Tap a point to see session details.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -271,6 +293,7 @@ struct StatisticsView: View {
                             y: .value("Average N-Level", point.averageNLevel)
                         )
                         .foregroundStyle(.orange)
+                        .symbolSize(point.dayIndex == selectedNLevelIndex ? 120 : 50)
                         .annotation(position: .top, alignment: .center) {
                             if point.sessionCount > 1 {
                                 Text("\(point.sessionCount)x")
@@ -281,12 +304,36 @@ struct StatisticsView: View {
                     }
                 }
                 .chartYScale(domain: nLevelChartDomain)
+                .chartOverlay { proxy in
+                    GeometryReader { geo in
+                        Rectangle().fill(.clear).contentShape(Rectangle())
+                            .gesture(
+                                SpatialTapGesture()
+                                    .onEnded { value in
+                                        let origin = geo[proxy.plotAreaFrame].origin
+                                        let x = value.location.x - origin.x
+                                        if let index = proxy.value(atX: x, as: Int.self) {
+                                            let clamped = min(max(index, 1), dailyNLevelPoints.count)
+                                            selectedNLevelIndex = selectedNLevelIndex == clamped ? nil : clamped
+                                        }
+                                    }
+                            )
+                    }
+                }
                 .frame(width: chartWidth, height: 200)
             }
 
-            Text("Daily average N-level reached at end of each session.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if let idx = selectedNLevelIndex,
+               let point = dailyNLevelPoints.first(where: { $0.dayIndex == idx }) {
+                let sessionNote = point.sessionCount > 1 ? " (\(point.sessionCount) sessions)" : ""
+                Text("\(point.day.formatted(.dateTime.month(.abbreviated).day().year())) · Avg N \(String(format: "%.1f", point.averageNLevel))\(sessionNote)")
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+            } else {
+                Text("Tap a point to see the date.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -312,18 +359,22 @@ struct StatisticsView: View {
     }
 
     private func pasteStats() {
-        let result = onPasteStats()
-        switch result {
-        case .success(let newCount, let duplicateCount):
-            if newCount > 0 {
-                clipboardStatusMessage = "Merged \(newCount) new sessions (\(duplicateCount) duplicates skipped)."
-            } else {
-                clipboardStatusMessage = "No new sessions found (\(duplicateCount) duplicates skipped)."
+        clipboardStatusMessage = "Checking clipboard…"
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            let result = onPasteStats()
+            switch result {
+            case .success(let newCount, let duplicateCount):
+                if newCount > 0 {
+                    clipboardStatusMessage = "Merged \(newCount) new sessions (\(duplicateCount) duplicates skipped)."
+                } else {
+                    clipboardStatusMessage = "No new sessions found (\(duplicateCount) duplicates skipped)."
+                }
+            case .noData:
+                clipboardStatusMessage = "Nothing on clipboard to paste."
+            case .invalidFormat:
+                clipboardStatusMessage = "Clipboard does not contain valid stats data."
             }
-        case .noData:
-            clipboardStatusMessage = "Nothing on clipboard to paste."
-        case .invalidFormat:
-            clipboardStatusMessage = "Clipboard does not contain valid stats data."
         }
     }
 

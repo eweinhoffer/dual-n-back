@@ -172,6 +172,11 @@ struct StatisticsView: View {
                             .frame(minWidth: 180, alignment: .leading)
                         Text("N \(session.startN)->\(session.endN)")
                             .frame(minWidth: 70, alignment: .leading)
+                            .foregroundStyle(
+                                session.endN > session.startN ? Color.green :
+                                session.endN < session.startN ? Color.red :
+                                Color.primary
+                            )
                         Text(String(format: "V %.1f%%", session.visualAccuracy))
                             .frame(minWidth: 80, alignment: .leading)
                         Text(String(format: "A %.1f%%", session.audioAccuracy))
@@ -323,18 +328,22 @@ struct StatisticsView: View {
     }
 
     private func pasteStats() {
-        let result = game.pasteStatsFromClipboard()
-        switch result {
-        case .success(let newCount, let duplicateCount):
-            if newCount > 0 {
-                exportStatusMessage = "Merged \(newCount) new sessions (\(duplicateCount) duplicates skipped)."
-            } else {
-                exportStatusMessage = "No new sessions found (\(duplicateCount) duplicates skipped)."
+        exportStatusMessage = "Checking clipboard…"
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            let result = game.pasteStatsFromClipboard()
+            switch result {
+            case .success(let newCount, let duplicateCount):
+                if newCount > 0 {
+                    exportStatusMessage = "Merged \(newCount) new sessions (\(duplicateCount) duplicates skipped)."
+                } else {
+                    exportStatusMessage = "No new sessions found (\(duplicateCount) duplicates skipped)."
+                }
+            case .noData:
+                exportStatusMessage = "Nothing on clipboard to paste."
+            case .invalidFormat:
+                exportStatusMessage = "Clipboard does not contain valid stats data."
             }
-        case .noData:
-            exportStatusMessage = "Nothing on clipboard to paste."
-        case .invalidFormat:
-            exportStatusMessage = "Clipboard does not contain valid stats data."
         }
     }
 

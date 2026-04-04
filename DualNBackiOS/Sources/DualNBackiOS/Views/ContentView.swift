@@ -49,7 +49,7 @@ struct ContentView: View {
             }
             .padding(.vertical, 16)
         }
-        .navigationTitle("Dual N-Back")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -129,14 +129,19 @@ struct ContentView: View {
     }
 
     private var matchButtons: some View {
-        VStack(spacing: 12) {
+        HStack(spacing: 12) {
             Button {
                 haptic.impactOccurred()
                 game.registerPositionAction()
             } label: {
-                Label("Visual Match", systemImage: "square.grid.3x3.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                VStack(spacing: 6) {
+                    Image(systemName: "square.grid.3x3.fill")
+                        .font(.title2)
+                    Text("Visual Match")
+                        .font(.subheadline.bold())
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 80)
             }
             .buttonStyle(.borderedProminent)
             .tint(game.visualButtonActive ? .orange : .accentColor)
@@ -146,9 +151,14 @@ struct ContentView: View {
                 haptic.impactOccurred()
                 game.registerAudioAction()
             } label: {
-                Label("Auditory Match", systemImage: "speaker.wave.2.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                VStack(spacing: 6) {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.title2)
+                    Text("Auditory Match")
+                        .font(.subheadline.bold())
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 80)
             }
             .buttonStyle(.borderedProminent)
             .tint(game.audioButtonActive ? .orange : .accentColor)
