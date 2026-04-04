@@ -9,7 +9,6 @@ struct ContentView: View {
     @AppStorage("showLiveStatusText") private var showLiveStatusText = true
     @AppStorage("atAppOpenResumeLastLevel") private var atAppOpenResumeLastLevel = true
     @AppStorage("atAppOpenStartLevel") private var atAppOpenStartLevel = 2
-    @AppStorage("lastKnownNLevel") private var lastKnownNLevel = 2
     @AppStorage("highlightColorRed") private var highlightRed = 0.98
     @AppStorage("highlightColorGreen") private var highlightGreen = 0.62
     @AppStorage("highlightColorBlue") private var highlightBlue = 0.33
@@ -88,9 +87,6 @@ struct ContentView: View {
         .onAppear {
             applyStartupLevelIfNeeded()
             haptic.prepare()
-        }
-        .onChange(of: game.nLevel) { newValue in
-            lastKnownNLevel = clampLevel(newValue)
         }
     }
 
@@ -192,8 +188,15 @@ struct ContentView: View {
     private func applyStartupLevelIfNeeded() {
         guard !appliedStartupLevel else { return }
         appliedStartupLevel = true
-        let startupLevel = atAppOpenResumeLastLevel ? lastKnownNLevel : atAppOpenStartLevel
-        game.nLevel = clampLevel(startupLevel)
+        if atAppOpenResumeLastLevel {
+            // Derive from the most recent session's end N-level so clipboard sync is reflected.
+            // Falls back to the default (2) if no sessions exist.
+            if let lastSession = game.statisticsHistory.last {
+                game.nLevel = clampLevel(lastSession.endN)
+            }
+        } else {
+            game.nLevel = clampLevel(atAppOpenStartLevel)
+        }
     }
 
     private func clampLevel(_ value: Int) -> Int {

@@ -218,30 +218,34 @@ struct StatisticsView: View {
     // MARK: - Charts
 
     private var rawScoresChart: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Chart {
-                ForEach(rawScoreChartPoints) { point in
-                    LineMark(
-                        x: .value("Session", point.sessionIndex),
-                        y: .value("Accuracy", point.accuracy),
-                        series: .value("Stream", point.series.rawValue)
-                    )
-                    .foregroundStyle(by: .value("Stream", point.series.rawValue))
+        let pointCount = sortedSessions.count
+        let chartWidth = max(280, CGFloat(pointCount) * 24)
+        return VStack(alignment: .leading, spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                Chart {
+                    ForEach(rawScoreChartPoints) { point in
+                        LineMark(
+                            x: .value("Session", point.sessionIndex),
+                            y: .value("Accuracy", point.accuracy),
+                            series: .value("Stream", point.series.rawValue)
+                        )
+                        .foregroundStyle(by: .value("Stream", point.series.rawValue))
 
-                    PointMark(
-                        x: .value("Session", point.sessionIndex),
-                        y: .value("Accuracy", point.accuracy)
-                    )
-                    .foregroundStyle(by: .value("Stream", point.series.rawValue))
+                        PointMark(
+                            x: .value("Session", point.sessionIndex),
+                            y: .value("Accuracy", point.accuracy)
+                        )
+                        .foregroundStyle(by: .value("Stream", point.series.rawValue))
+                    }
                 }
+                .chartForegroundStyleScale([
+                    StreamSeries.visual.rawValue: Color.blue,
+                    StreamSeries.audio.rawValue: Color.green,
+                ])
+                .chartYScale(domain: 0...100)
+                .chartLegend(position: .top, alignment: .leading)
+                .frame(width: chartWidth, height: 200)
             }
-            .chartForegroundStyleScale([
-                StreamSeries.visual.rawValue: Color.blue,
-                StreamSeries.audio.rawValue: Color.green,
-            ])
-            .chartYScale(domain: 0...100)
-            .chartLegend(position: .top, alignment: .leading)
-            .frame(height: 200)
 
             Text("Per-session visual and auditory accuracy.")
                 .font(.caption)
@@ -250,31 +254,35 @@ struct StatisticsView: View {
     }
 
     private var nLevelChart: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Chart {
-                ForEach(dailyNLevelPoints) { point in
-                    LineMark(
-                        x: .value("Day", point.dayIndex),
-                        y: .value("Average N-Level", point.averageNLevel)
-                    )
-                    .foregroundStyle(.orange)
+        let pointCount = dailyNLevelPoints.count
+        let chartWidth = max(280, CGFloat(pointCount) * 36)
+        return VStack(alignment: .leading, spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                Chart {
+                    ForEach(dailyNLevelPoints) { point in
+                        LineMark(
+                            x: .value("Day", point.dayIndex),
+                            y: .value("Average N-Level", point.averageNLevel)
+                        )
+                        .foregroundStyle(.orange)
 
-                    PointMark(
-                        x: .value("Day", point.dayIndex),
-                        y: .value("Average N-Level", point.averageNLevel)
-                    )
-                    .foregroundStyle(.orange)
-                    .annotation(position: .top, alignment: .center) {
-                        if point.sessionCount > 1 {
-                            Text("\(point.sessionCount)x")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                        PointMark(
+                            x: .value("Day", point.dayIndex),
+                            y: .value("Average N-Level", point.averageNLevel)
+                        )
+                        .foregroundStyle(.orange)
+                        .annotation(position: .top, alignment: .center) {
+                            if point.sessionCount > 1 {
+                                Text("\(point.sessionCount)x")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
+                .chartYScale(domain: nLevelChartDomain)
+                .frame(width: chartWidth, height: 200)
             }
-            .chartYScale(domain: nLevelChartDomain)
-            .frame(height: 200)
 
             Text("Daily average N-level reached at end of each session.")
                 .font(.caption)

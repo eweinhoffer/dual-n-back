@@ -145,6 +145,9 @@ public final class GameEngine: NSObject, ObservableObject {
         }
         let result = historyStore.merge(existing: statisticsHistory, incoming: incomingSessions)
         statisticsHistory = result.merged
+        if let lastSession = statisticsHistory.last {
+            nLevel = lastSession.endN
+        }
         do {
             try historyStore.save(statisticsHistory)
         } catch {

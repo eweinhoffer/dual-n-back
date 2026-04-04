@@ -18,10 +18,13 @@ public struct ClipboardHelper {
             pasteboard.setString(string, forType: .string)
         }
         #elseif os(iOS)
-        UIPasteboard.general.setData(data, forPasteboardType: pasteboardType)
+        // Set both the custom type and plain text in a single item so neither overwrites the other.
+        // (Assigning UIPasteboard.general.string directly replaces ALL items, which would wipe the custom type.)
+        var item: [String: Any] = [pasteboardType: data]
         if let string = String(data: data, encoding: .utf8) {
-            UIPasteboard.general.string = string
+            item["public.utf8-plain-text"] = string
         }
+        UIPasteboard.general.setItems([item])
         #endif
     }
 

@@ -13,12 +13,8 @@ struct DualNBackPrototypeApp: App {
         .windowResizability(.automatic)
 
         Window("Statistics", id: "statistics") {
-            StatisticsView(
-                sessions: game.statisticsHistory,
-                onClearStatistics: { game.clearStatisticsHistory() },
-                onCopyStats: { game.copyStatsToClipboard() },
-                onPasteStats: { game.pasteStatsFromClipboard() }
-            )
+            StatisticsView()
+                .environmentObject(game)
         }
         .windowResizability(.automatic)
         .defaultSize(width: 900, height: 640)

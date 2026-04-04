@@ -33,13 +33,8 @@ private struct DailyNLevelPoint: Identifiable {
 }
 
 struct StatisticsView: View {
+    @EnvironmentObject private var game: GameEngine
     @Environment(\.dismiss) private var dismiss
-    let onClearStatistics: () -> Void
-    let onCopyStats: () -> Int
-    let onPasteStats: () -> GameEngine.PasteResult
-    private let sortedSessions: [SessionScore]
-    private let rawScoreChartPoints: [RawScoreChartPoint]
-    private let dailyNLevelPoints: [DailyNLevelPoint]
     @State private var showClearConfirmation = false
     @State private var exportStatusMessage = ""
     @State private var selectedChartTab: StatisticsChartTab = .rawScores
@@ -59,53 +54,39 @@ struct StatisticsView: View {
 
     private let chartSectionHeight: CGFloat = 270
 
-    init(
-        sessions: [SessionScore],
-        onClearStatistics: @escaping () -> Void,
-        onCopyStats: @escaping () -> Int,
-        onPasteStats: @escaping () -> GameEngine.PasteResult
-    ) {
-        self.onClearStatistics = onClearStatistics
-        self.onCopyStats = onCopyStats
-        self.onPasteStats = onPasteStats
-        self.sortedSessions = sessions.sorted { $0.completedAt < $1.completedAt }
+    private var sortedSessions: [SessionScore] {
+        game.statisticsHistory.sorted { $0.completedAt < $1.completedAt }
+    }
 
+    private var rawScoreChartPoints: [RawScoreChartPoint] {
         var points: [RawScoreChartPoint] = []
-        points.reserveCapacity(self.sortedSessions.count * 2)
+        points.reserveCapacity(sortedSessions.count * 2)
         for (index, session) in sortedSessions.enumerated() {
             let sessionIndex = index + 1
-            points.append(
-                .init(
-                    id: "\(session.id.uuidString)-\(StreamSeries.visual.rawValue)",
-                    sessionIndex: sessionIndex,
-                    accuracy: session.visualAccuracy,
-                    series: .visual
-                )
-            )
-            points.append(
-                .init(
-                    id: "\(session.id.uuidString)-\(StreamSeries.audio.rawValue)",
-                    sessionIndex: sessionIndex,
-                    accuracy: session.audioAccuracy,
-                    series: .audio
-                )
-            )
+            points.append(.init(
+                id: "\(session.id.uuidString)-\(StreamSeries.visual.rawValue)",
+                sessionIndex: sessionIndex,
+                accuracy: session.visualAccuracy,
+                series: .visual
+            ))
+            points.append(.init(
+                id: "\(session.id.uuidString)-\(StreamSeries.audio.rawValue)",
+                sessionIndex: sessionIndex,
+                accuracy: session.audioAccuracy,
+                series: .audio
+            ))
         }
-        self.rawScoreChartPoints = points
+        return points
+    }
 
+    private var dailyNLevelPoints: [DailyNLevelPoint] {
         let calendar = Calendar.autoupdatingCurrent
-        let sessionsByDay = Dictionary(grouping: self.sortedSessions) { session in
+        let sessionsByDay = Dictionary(grouping: sortedSessions) { session in
             calendar.startOfDay(for: session.completedAt)
         }
-        self.dailyNLevelPoints = sessionsByDay.keys.sorted().enumerated().compactMap { offset, day in
-            guard let daySessions = sessionsByDay[day], !daySessions.isEmpty else {
-                return nil
-            }
-
-            let totalNLevel = daySessions.reduce(0.0) { partialResult, session in
-                partialResult + Double(session.endN)
-            }
-
+        return sessionsByDay.keys.sorted().enumerated().compactMap { offset, day in
+            guard let daySessions = sessionsByDay[day], !daySessions.isEmpty else { return nil }
+            let totalNLevel = daySessions.reduce(0.0) { $0 + Double($1.endN) }
             return DailyNLevelPoint(
                 dayIndex: offset + 1,
                 day: day,
@@ -241,7 +222,7 @@ struct StatisticsView: View {
         .frame(minWidth: 760, idealWidth: 900, minHeight: 520, idealHeight: 640)
         .alert("Erase all score history?", isPresented: $showClearConfirmation) {
             Button("Erase", role: .destructive) {
-                onClearStatistics()
+                game.clearStatisticsHistory()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -335,14 +316,14 @@ struct StatisticsView: View {
     }
 
     private func copyStats() {
-        let count = onCopyStats()
+        let count = game.copyStatsToClipboard()
         exportStatusMessage = count > 0
             ? "Copied \(count) sessions to clipboard."
             : "No sessions to copy."
     }
 
     private func pasteStats() {
-        let result = onPasteStats()
+        let result = game.pasteStatsFromClipboard()
         switch result {
         case .success(let newCount, let duplicateCount):
             if newCount > 0 {
