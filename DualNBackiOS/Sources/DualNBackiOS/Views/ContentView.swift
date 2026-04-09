@@ -12,9 +12,18 @@ struct ContentView: View {
     @AppStorage("highlightColorRed") private var highlightRed = 0.98
     @AppStorage("highlightColorGreen") private var highlightGreen = 0.62
     @AppStorage("highlightColorBlue") private var highlightBlue = 0.33
+    @AppStorage("randomColorEnabled") private var randomColorEnabled = false
     @State private var appliedStartupLevel = false
 
     private let haptic = UIImpactFeedbackGenerator(style: .medium)
+    private let presetColorsRGB: [(Double, Double, Double)] = [
+        (0.98, 0.62, 0.33),
+        (0.37, 0.70, 0.94),
+        (0.42, 0.78, 0.61),
+        (0.96, 0.78, 0.42),
+        (0.79, 0.64, 0.96),
+        (0.95, 0.49, 0.57),
+    ]
 
     private var highlightColor: Color {
         Color(red: highlightRed, green: highlightGreen, blue: highlightBlue)
@@ -29,6 +38,17 @@ struct ContentView: View {
                     currentDisplayIndex: game.currentDisplayIndex,
                     highlightColor: highlightColor
                 )
+                .overlay {
+                    if let value = game.countdownValue {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(.black.opacity(0.5))
+                            Text("\(value)")
+                                .font(.system(size: 80, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                }
                 .padding(.horizontal, 8)
 
                 controlRow
@@ -68,6 +88,7 @@ struct ContentView: View {
                 highlightRed: $highlightRed,
                 highlightGreen: $highlightGreen,
                 highlightBlue: $highlightBlue,
+                randomColorEnabled: $randomColorEnabled,
                 showLiveStatusText: $showLiveStatusText,
                 atAppOpenResumeLastLevel: $atAppOpenResumeLastLevel,
                 atAppOpenStartLevel: $atAppOpenStartLevel
@@ -108,6 +129,11 @@ struct ContentView: View {
     private var controlRow: some View {
         HStack(spacing: 16) {
             Button {
+                if randomColorEnabled, let pick = presetColorsRGB.randomElement() {
+                    highlightRed = pick.0
+                    highlightGreen = pick.1
+                    highlightBlue = pick.2
+                }
                 game.start()
             } label: {
                 Text(game.isRunning || game.isPreparingStart ? "Running…" : "Start")

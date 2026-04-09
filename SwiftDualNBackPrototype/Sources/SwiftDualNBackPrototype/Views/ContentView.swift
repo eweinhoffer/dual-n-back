@@ -10,8 +10,18 @@ struct ContentView: View {
     @AppStorage("atAppOpenResumeLastLevel") private var atAppOpenResumeLastLevel = true
     @AppStorage("atAppOpenStartLevel") private var atAppOpenStartLevel = 2
     @AppStorage("lastKnownNLevel") private var lastKnownNLevel = 2
+    @AppStorage("randomColorEnabled") private var randomColorEnabled = false
     @State private var visualHighlightColor: Color = .orange
     @State private var appliedStartupLevel = false
+
+    private let presetColors: [Color] = [
+        Color(red: 0.98, green: 0.62, blue: 0.33),
+        Color(red: 0.37, green: 0.70, blue: 0.94),
+        Color(red: 0.42, green: 0.78, blue: 0.61),
+        Color(red: 0.96, green: 0.78, blue: 0.42),
+        Color(red: 0.79, green: 0.64, blue: 0.96),
+        Color(red: 0.95, green: 0.49, blue: 0.57),
+    ]
 
     var body: some View {
         VStack(spacing: 14) {
@@ -55,9 +65,23 @@ struct ContentView: View {
                 }
             }
             .padding(.vertical, 6)
+            .overlay {
+                if let value = game.countdownValue {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(.black.opacity(0.5))
+                        Text("\(value)")
+                            .font(.system(size: 80, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
+                }
+            }
 
             HStack(spacing: 12) {
                 Button(game.isRunning || game.isPreparingStart ? "Running" : "Start") {
+                    if randomColorEnabled, let pick = presetColors.randomElement() {
+                        visualHighlightColor = pick
+                    }
                     game.start()
                 }
                 .disabled(game.isRunning || game.isPreparingStart)
@@ -125,6 +149,7 @@ struct ContentView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView(
                 visualHighlightColor: $visualHighlightColor,
+                randomColorEnabled: $randomColorEnabled,
                 showLiveStatusText: $showLiveStatusText,
                 atAppOpenResumeLastLevel: $atAppOpenResumeLastLevel,
                 atAppOpenStartLevel: $atAppOpenStartLevel

@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Binding var highlightRed: Double
     @Binding var highlightGreen: Double
     @Binding var highlightBlue: Double
+    @Binding var randomColorEnabled: Bool
     @Binding var showLiveStatusText: Bool
     @Binding var atAppOpenResumeLastLevel: Bool
     @Binding var atAppOpenStartLevel: Int
@@ -40,6 +41,8 @@ struct SettingsView: View {
                 }
 
                 Section("Visual Stimulus Color") {
+                    Toggle("Random on Start", isOn: $randomColorEnabled)
+
                     HStack(spacing: 12) {
                         ForEach(Array(presetColors.enumerated()), id: \.offset) { _, preset in
                             Button {
@@ -61,6 +64,8 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    .disabled(randomColorEnabled)
+                    .opacity(randomColorEnabled ? 0.4 : 1.0)
 
                     ColorPicker("Custom color", selection: Binding(
                         get: { currentColor },
@@ -73,6 +78,8 @@ struct SettingsView: View {
                             highlightBlue = Double(b)
                         }
                     ), supportsOpacity: false)
+                    .disabled(randomColorEnabled)
+                    .opacity(randomColorEnabled ? 0.4 : 1.0)
 
                     RoundedRectangle(cornerRadius: 10)
                         .fill(currentColor)

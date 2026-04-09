@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var visualHighlightColor: Color
+    @Binding var randomColorEnabled: Bool
     @Binding var showLiveStatusText: Bool
     @Binding var atAppOpenResumeLastLevel: Bool
     @Binding var atAppOpenStartLevel: Int
@@ -39,9 +40,15 @@ struct SettingsView: View {
 
             Text("Visual stimulus color")
                 .font(.headline)
-            Text("Quick presets")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("Quick presets")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Toggle("Random on Start", isOn: $randomColorEnabled)
+                    .toggleStyle(.checkbox)
+                    .fixedSize()
+            }
             HStack(spacing: 10) {
                 ForEach(Array(presetColors.enumerated()), id: \.offset) { _, color in
                     Button {
@@ -58,7 +65,11 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .disabled(randomColorEnabled)
+            .opacity(randomColorEnabled ? 0.4 : 1.0)
             ColorPicker("Choose highlight color", selection: $visualHighlightColor, supportsOpacity: false)
+                .disabled(randomColorEnabled)
+                .opacity(randomColorEnabled ? 0.4 : 1.0)
             RoundedRectangle(cornerRadius: 10)
                 .fill(visualHighlightColor)
                 .frame(width: 120, height: 60)

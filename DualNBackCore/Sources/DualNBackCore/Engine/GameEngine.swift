@@ -32,6 +32,7 @@ public final class GameEngine: NSObject, ObservableObject {
     @Published public var showResultPopup = false
     @Published public var visualButtonActive = false
     @Published public var audioButtonActive = false
+    @Published public var countdownValue: Int? = nil
 
     @Published public var posHits = 0
     @Published public var posMisses = 0
@@ -63,12 +64,28 @@ public final class GameEngine: NSObject, ObservableObject {
     }
 
     #if os(iOS)
+    private var audioSessionConfigured = false
+
     private func configureAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.duckOthers])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
             // Non-fatal: speech may not play when the silent switch is on
+        }
+        guard !audioSessionConfigured else { return }
+        audioSessionConfigured = true
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            guard let userInfo = notification.userInfo,
+                  let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+            if type == .ended {
+                try? AVAudioSession.sharedInstance().setActive(true)
+            }
         }
     }
     #endif
@@ -85,6 +102,10 @@ public final class GameEngine: NSObject, ObservableObject {
     public func start() {
         if isRunning || isPreparingStart { return }
         if nLevel < 1 { nLevel = 1 }
+
+        #if os(iOS)
+        configureAudioSession()
+        #endif
 
         guard buildTrialPlan() else {
             statusText = "Could not build valid trial plan for this N"
@@ -108,6 +129,7 @@ public final class GameEngine: NSObject, ObservableObject {
         awaitingResponseFor = nil
         isRunning = false
         isPreparingStart = false
+        countdownValue = nil
     }
 
     public func registerPositionAction() {
@@ -202,6 +224,7 @@ public final class GameEngine: NSObject, ObservableObject {
             let item = DispatchWorkItem { [weak self] in
                 guard let self, self.isPreparingStart else { return }
                 self.statusText = "Starting in \(value)..."
+                self.countdownValue = value
                 self.speakCountdown(value)
             }
             countdownWorkItems.append(item)
@@ -210,6 +233,7 @@ public final class GameEngine: NSObject, ObservableObject {
 
         let startItem = DispatchWorkItem { [weak self] in
             guard let self, self.isPreparingStart else { return }
+            self.countdownValue = nil
             self.isPreparingStart = false
             self.isRunning = true
             self.statusText = "Game running."
