@@ -13,25 +13,39 @@ public struct ClipboardHelper {
         #if os(macOS)
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setData(data, forType: .init(pasteboardType))
+        let item = NSPasteboardItem()
+        item.setData(data, forType: NSPasteboard.PasteboardType(rawValue: pasteboardType))
         if let string = String(data: data, encoding: .utf8) {
-            pasteboard.setString(string, forType: .string)
+            item.setString(string, forType: .string)
         }
+        pasteboard.writeObjects([item])
         #elseif os(iOS)
-        // Set both the custom type and plain text in a single item so neither overwrites the other.
-        // (Assigning UIPasteboard.general.string directly replaces ALL items, which would wipe the custom type.)
-        var item: [String: Any] = [pasteboardType: data]
+        // Write as plain text only. setItems() with an unregistered custom UTI silently fails on iOS,
+        // leaving the clipboard unchanged. Universal Clipboard only syncs standard types anyway,
+        // and the read path falls back to string regardless.
         if let string = String(data: data, encoding: .utf8) {
-            item["public.utf8-plain-text"] = string
+            UIPasteboard.general.string = string
         }
-        UIPasteboard.general.setItems([item])
         #endif
     }
 
     public static func readFromClipboard() -> Data? {
         #if os(macOS)
         let pasteboard = NSPasteboard.general
-        if let data = pasteboard.data(forType: .init(pasteboardType)) {
+        let customType = NSPasteboard.PasteboardType(rawValue: pasteboardType)
+
+        // Check each item for our custom type, then plain text
+        for item in pasteboard.pasteboardItems ?? [] {
+            if let data = item.data(forType: customType) {
+                return data
+            }
+            if let string = item.string(forType: .string) {
+                return string.data(using: .utf8)
+            }
+        }
+
+        // Fallback: pasteboard-level convenience accessors
+        if let data = pasteboard.data(forType: customType) {
             return data
         }
         if let string = pasteboard.string(forType: .string) {
