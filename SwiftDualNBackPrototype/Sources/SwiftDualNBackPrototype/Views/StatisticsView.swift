@@ -11,7 +11,7 @@ private enum StreamSeries: String {
 
 private enum StatisticsChartTab: String, CaseIterable, Identifiable {
     case rawScores = "Raw Scores"
-    case nLevel = "N-Level"
+    case nLevel = "Avg N-Level"
 
     var id: String { rawValue }
 }
@@ -37,7 +37,7 @@ struct StatisticsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showClearConfirmation = false
     @State private var exportStatusMessage = ""
-    @State private var selectedChartTab: StatisticsChartTab = .rawScores
+    @State private var selectedChartTab: StatisticsChartTab = .nLevel
 
     private static let csvTimestampFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()

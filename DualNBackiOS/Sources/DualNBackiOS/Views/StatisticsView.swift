@@ -9,7 +9,7 @@ private enum StreamSeries: String {
 
 private enum StatisticsChartTab: String, CaseIterable, Identifiable {
     case rawScores = "Raw Scores"
-    case nLevel = "N-Level"
+    case nLevel = "Avg N-Level"
 
     var id: String { rawValue }
 }
@@ -39,7 +39,7 @@ struct StatisticsView: View {
     private let rawScoreChartPoints: [RawScoreChartPoint]
     private let dailyNLevelPoints: [DailyNLevelPoint]
     @State private var showClearConfirmation = false
-    @State private var selectedChartTab: StatisticsChartTab = .rawScores
+    @State private var selectedChartTab: StatisticsChartTab = .nLevel
     @State private var csvShareURL: URL? = nil
     @State private var clipboardStatusMessage = ""
     @State private var selectedRawScoreIndex: Int? = nil

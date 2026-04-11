@@ -78,6 +78,11 @@ struct SettingsView: View {
                         .stroke(Color.gray.opacity(0.5), lineWidth: 1)
                 )
             HStack {
+                if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                    Text("Version \(version)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button("Done") {
                     dismiss()

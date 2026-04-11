@@ -89,6 +89,13 @@ struct SettingsView: View {
                                 .stroke(Color.gray.opacity(0.4), lineWidth: 1)
                         )
                 }
+
+                if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                    Section {
+                        Text("Version \(version)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
