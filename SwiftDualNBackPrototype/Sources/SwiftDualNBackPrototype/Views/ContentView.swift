@@ -101,7 +101,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(game.visualButtonActive ? .orange : .accentColor)
-                .disabled(!game.isRunning)
+                .disabled(!game.buttonsAvailable)
 
                 Button {
                     game.registerAudioAction()
@@ -111,7 +111,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(game.audioButtonActive ? .orange : .accentColor)
-                .disabled(!game.isRunning)
+                .disabled(!game.buttonsAvailable)
             }
 
             if showLiveStatusText && !game.statusText.isEmpty {

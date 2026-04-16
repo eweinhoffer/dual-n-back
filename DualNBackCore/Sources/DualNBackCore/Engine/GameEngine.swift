@@ -94,6 +94,10 @@ public final class GameEngine: NSObject, ObservableObject {
         20 + nLevel
     }
 
+    public var buttonsAvailable: Bool {
+        isRunning && trialIndex >= nLevel
+    }
+
     public var currentDisplayIndex: Int? {
         guard let currentPosition else { return nil }
         return playableGridIndices[currentPosition]
@@ -133,13 +137,13 @@ public final class GameEngine: NSObject, ObservableObject {
     }
 
     public func registerPositionAction() {
-        guard isRunning, let idx = awaitingResponseFor else { return }
+        guard buttonsAvailable, let idx = awaitingResponseFor else { return }
         flashVisualButton()
         responses[idx].pos = true
     }
 
     public func registerAudioAction() {
-        guard isRunning, let idx = awaitingResponseFor else { return }
+        guard buttonsAvailable, let idx = awaitingResponseFor else { return }
         flashAudioButton()
         responses[idx].aud = true
     }

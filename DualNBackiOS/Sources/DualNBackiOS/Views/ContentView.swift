@@ -171,7 +171,7 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(game.visualButtonActive ? .orange : .accentColor)
-            .disabled(!game.isRunning)
+            .disabled(!game.buttonsAvailable)
 
             Button {
                 haptic.impactOccurred()
@@ -188,7 +188,7 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(game.audioButtonActive ? .orange : .accentColor)
-            .disabled(!game.isRunning)
+            .disabled(!game.buttonsAvailable)
         }
         .padding(.horizontal)
     }

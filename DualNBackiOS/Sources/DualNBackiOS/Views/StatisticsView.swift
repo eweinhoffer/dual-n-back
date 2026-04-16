@@ -2,23 +2,19 @@ import Charts
 import DualNBackCore
 import SwiftUI
 
-private enum StreamSeries: String {
-    case visual = "Visual"
-    case audio = "Auditory"
-}
-
 private enum StatisticsChartTab: String, CaseIterable, Identifiable {
-    case rawScores = "Raw Scores"
-    case nLevel = "Avg N-Level"
+    case daily = "Daily Avg"
+    case weekly = "Weekly Avg"
 
     var id: String { rawValue }
 }
 
-private struct RawScoreChartPoint: Identifiable {
-    let id: String
-    let sessionIndex: Int
-    let accuracy: Double
-    let series: StreamSeries
+private struct WeeklyNLevelPoint: Identifiable {
+    let weekIndex: Int
+    let weekStart: Date
+    let averageNLevel: Double
+    let sessionCount: Int
+    var id: Int { weekIndex }
 }
 
 private struct DailyNLevelPoint: Identifiable {
@@ -36,14 +32,14 @@ struct StatisticsView: View {
     let onCopyStats: () -> Int
     let onPasteStats: () -> GameEngine.PasteResult
     private let sortedSessions: [SessionScore]
-    private let rawScoreChartPoints: [RawScoreChartPoint]
     private let dailyNLevelPoints: [DailyNLevelPoint]
+    private let weeklyNLevelPoints: [WeeklyNLevelPoint]
     @State private var showClearConfirmation = false
-    @State private var selectedChartTab: StatisticsChartTab = .nLevel
+    @State private var selectedChartTab: StatisticsChartTab = .daily
     @State private var csvShareURL: URL? = nil
     @State private var clipboardStatusMessage = ""
-    @State private var selectedRawScoreIndex: Int? = nil
-    @State private var selectedNLevelIndex: Int? = nil
+    @State private var selectedDailyIndex: Int? = nil
+    @State private var selectedWeeklyIndex: Int? = nil
 
     private static let csvTimestampFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -69,26 +65,8 @@ struct StatisticsView: View {
         self.onPasteStats = onPasteStats
         self.sortedSessions = sessions.sorted { $0.completedAt < $1.completedAt }
 
-        var points: [RawScoreChartPoint] = []
-        points.reserveCapacity(self.sortedSessions.count * 2)
-        for (index, session) in sortedSessions.enumerated() {
-            let sessionIndex = index + 1
-            points.append(.init(
-                id: "\(session.id.uuidString)-V",
-                sessionIndex: sessionIndex,
-                accuracy: session.visualAccuracy,
-                series: .visual
-            ))
-            points.append(.init(
-                id: "\(session.id.uuidString)-A",
-                sessionIndex: sessionIndex,
-                accuracy: session.audioAccuracy,
-                series: .audio
-            ))
-        }
-        self.rawScoreChartPoints = points
-
         let calendar = Calendar.autoupdatingCurrent
+
         let sessionsByDay = Dictionary(grouping: self.sortedSessions) { session in
             calendar.startOfDay(for: session.completedAt)
         }
@@ -100,6 +78,21 @@ struct StatisticsView: View {
                 day: day,
                 averageNLevel: totalNLevel / Double(daySessions.count),
                 sessionCount: daySessions.count
+            )
+        }
+
+        let sessionsByWeek = Dictionary(grouping: self.sortedSessions) { session in
+            calendar.dateInterval(of: .weekOfYear, for: session.completedAt)?.start
+                ?? calendar.startOfDay(for: session.completedAt)
+        }
+        self.weeklyNLevelPoints = sessionsByWeek.keys.sorted().enumerated().compactMap { offset, weekStart in
+            guard let weekSessions = sessionsByWeek[weekStart], !weekSessions.isEmpty else { return nil }
+            let total = weekSessions.reduce(0.0) { $0 + Double($1.endN) }
+            return WeeklyNLevelPoint(
+                weekIndex: offset + 1,
+                weekStart: weekStart,
+                averageNLevel: total / Double(weekSessions.count),
+                sessionCount: weekSessions.count
             )
         }
     }
@@ -127,8 +120,8 @@ struct StatisticsView: View {
 
                         Group {
                             switch selectedChartTab {
-                            case .rawScores: rawScoresChart
-                            case .nLevel: nLevelChart
+                            case .daily: nLevelChart
+                            case .weekly: weeklyNLevelChart
                             }
                         }
                         .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
@@ -215,66 +208,6 @@ struct StatisticsView: View {
 
     // MARK: - Charts
 
-    private var rawScoresChart: some View {
-        let pointCount = sortedSessions.count
-        let chartWidth = max(280, CGFloat(pointCount) * 24)
-        return VStack(alignment: .leading, spacing: 6) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                Chart {
-                    ForEach(rawScoreChartPoints) { point in
-                        LineMark(
-                            x: .value("Session", point.sessionIndex),
-                            y: .value("Accuracy", point.accuracy),
-                            series: .value("Stream", point.series.rawValue)
-                        )
-                        .foregroundStyle(by: .value("Stream", point.series.rawValue))
-
-                        PointMark(
-                            x: .value("Session", point.sessionIndex),
-                            y: .value("Accuracy", point.accuracy)
-                        )
-                        .foregroundStyle(by: .value("Stream", point.series.rawValue))
-                        .symbolSize(point.sessionIndex == selectedRawScoreIndex ? 120 : 50)
-                    }
-                }
-                .chartForegroundStyleScale([
-                    StreamSeries.visual.rawValue: Color.blue,
-                    StreamSeries.audio.rawValue: Color.green,
-                ])
-                .chartYScale(domain: 0...100)
-                .chartLegend(position: .top, alignment: .leading)
-                .chartOverlay { proxy in
-                    GeometryReader { geo in
-                        Rectangle().fill(.clear).contentShape(Rectangle())
-                            .gesture(
-                                SpatialTapGesture()
-                                    .onEnded { value in
-                                        let origin = geo[proxy.plotAreaFrame].origin
-                                        let x = value.location.x - origin.x
-                                        if let index = proxy.value(atX: x, as: Int.self) {
-                                            let clamped = min(max(index, 1), sortedSessions.count)
-                                            selectedRawScoreIndex = selectedRawScoreIndex == clamped ? nil : clamped
-                                        }
-                                    }
-                            )
-                    }
-                }
-                .frame(width: chartWidth, height: 200)
-            }
-
-            if let idx = selectedRawScoreIndex, idx >= 1, idx <= sortedSessions.count {
-                let session = sortedSessions[idx - 1]
-                Text("Session \(idx): \(session.completedAt.formatted(.dateTime.month(.abbreviated).day().year().hour().minute())) · V \(String(format: "%.1f%%", session.visualAccuracy)) · A \(String(format: "%.1f%%", session.audioAccuracy))")
-                    .font(.caption)
-                    .foregroundStyle(.primary)
-            } else {
-                Text("Tap a point to see session details.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
     private var nLevelChart: some View {
         let pointCount = dailyNLevelPoints.count
         let chartWidth = max(280, CGFloat(pointCount) * 36)
@@ -287,13 +220,14 @@ struct StatisticsView: View {
                             y: .value("Average N-Level", point.averageNLevel)
                         )
                         .foregroundStyle(.orange)
+                        .interpolationMethod(.catmullRom)
 
                         PointMark(
                             x: .value("Day", point.dayIndex),
                             y: .value("Average N-Level", point.averageNLevel)
                         )
                         .foregroundStyle(.orange)
-                        .symbolSize(point.dayIndex == selectedNLevelIndex ? 120 : 50)
+                        .symbolSize(point.dayIndex == selectedDailyIndex ? 120 : 50)
                         .annotation(position: .top, alignment: .center) {
                             if point.sessionCount > 1 {
                                 Text("\(point.sessionCount)x")
@@ -303,7 +237,7 @@ struct StatisticsView: View {
                         }
                     }
                 }
-                .chartYScale(domain: nLevelChartDomain)
+                .chartYScale(domain: dailyNLevelChartDomain)
                 .chartOverlay { proxy in
                     GeometryReader { geo in
                         Rectangle().fill(.clear).contentShape(Rectangle())
@@ -314,7 +248,7 @@ struct StatisticsView: View {
                                         let x = value.location.x - origin.x
                                         if let index = proxy.value(atX: x, as: Int.self) {
                                             let clamped = min(max(index, 1), dailyNLevelPoints.count)
-                                            selectedNLevelIndex = selectedNLevelIndex == clamped ? nil : clamped
+                                            selectedDailyIndex = selectedDailyIndex == clamped ? nil : clamped
                                         }
                                     }
                             )
@@ -323,7 +257,7 @@ struct StatisticsView: View {
                 .frame(width: chartWidth, height: 200)
             }
 
-            if let idx = selectedNLevelIndex,
+            if let idx = selectedDailyIndex,
                let point = dailyNLevelPoints.first(where: { $0.dayIndex == idx }) {
                 let sessionNote = point.sessionCount > 1 ? " (\(point.sessionCount) sessions)" : ""
                 Text("\(point.day.formatted(.dateTime.month(.abbreviated).day().year())) · Avg N \(String(format: "%.1f", point.averageNLevel))\(sessionNote)")
@@ -337,10 +271,85 @@ struct StatisticsView: View {
         }
     }
 
-    private var nLevelChartDomain: ClosedRange<Double> {
+    private var weeklyNLevelChart: some View {
+        let pointCount = weeklyNLevelPoints.count
+        let chartWidth = max(280, CGFloat(pointCount) * 52)
+        return VStack(alignment: .leading, spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                Chart {
+                    ForEach(weeklyNLevelPoints) { point in
+                        LineMark(
+                            x: .value("Week", point.weekIndex),
+                            y: .value("Average N-Level", point.averageNLevel)
+                        )
+                        .foregroundStyle(.purple)
+                        .interpolationMethod(.catmullRom)
+
+                        PointMark(
+                            x: .value("Week", point.weekIndex),
+                            y: .value("Average N-Level", point.averageNLevel)
+                        )
+                        .foregroundStyle(.purple)
+                        .symbolSize(point.weekIndex == selectedWeeklyIndex ? 120 : 50)
+                        .annotation(position: .top, alignment: .center) {
+                            if point.sessionCount > 1 {
+                                Text("\(point.sessionCount)x")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .chartYScale(domain: weeklyNLevelChartDomain)
+                .chartOverlay { proxy in
+                    GeometryReader { geo in
+                        Rectangle().fill(.clear).contentShape(Rectangle())
+                            .gesture(
+                                SpatialTapGesture()
+                                    .onEnded { value in
+                                        let origin = geo[proxy.plotAreaFrame].origin
+                                        let x = value.location.x - origin.x
+                                        if let index = proxy.value(atX: x, as: Int.self) {
+                                            let clamped = min(max(index, 1), weeklyNLevelPoints.count)
+                                            selectedWeeklyIndex = selectedWeeklyIndex == clamped ? nil : clamped
+                                        }
+                                    }
+                            )
+                    }
+                }
+                .frame(width: chartWidth, height: 200)
+            }
+
+            if let idx = selectedWeeklyIndex,
+               let point = weeklyNLevelPoints.first(where: { $0.weekIndex == idx }) {
+                let sessionNote = point.sessionCount > 1 ? " (\(point.sessionCount) sessions)" : ""
+                Text("Week of \(point.weekStart.formatted(.dateTime.month(.abbreviated).day().year())) · Avg N \(String(format: "%.1f", point.averageNLevel))\(sessionNote)")
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+            } else {
+                Text("Tap a point to see the week.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var dailyNLevelChartDomain: ClosedRange<Double> {
         guard
             let minValue = dailyNLevelPoints.map(\.averageNLevel).min(),
             let maxValue = dailyNLevelPoints.map(\.averageNLevel).max()
+        else {
+            return 1.0...2.0
+        }
+        let lower = max(1.0, floor((minValue - 0.5) * 2) / 2)
+        let upper = max(lower + 1.0, ceil((maxValue + 0.5) * 2) / 2)
+        return lower...upper
+    }
+
+    private var weeklyNLevelChartDomain: ClosedRange<Double> {
+        guard
+            let minValue = weeklyNLevelPoints.map(\.averageNLevel).min(),
+            let maxValue = weeklyNLevelPoints.map(\.averageNLevel).max()
         else {
             return 1.0...2.0
         }

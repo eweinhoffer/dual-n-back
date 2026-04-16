@@ -4,23 +4,19 @@ import DualNBackCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-private enum StreamSeries: String {
-    case visual = "Visual"
-    case audio = "Auditory"
-}
-
 private enum StatisticsChartTab: String, CaseIterable, Identifiable {
-    case rawScores = "Raw Scores"
-    case nLevel = "Avg N-Level"
+    case daily = "Daily Avg"
+    case weekly = "Weekly Avg"
 
     var id: String { rawValue }
 }
 
-private struct RawScoreChartPoint: Identifiable {
-    let id: String
-    let sessionIndex: Int
-    let accuracy: Double
-    let series: StreamSeries
+private struct WeeklyNLevelPoint: Identifiable {
+    let weekIndex: Int
+    let weekStart: Date
+    let averageNLevel: Double
+    let sessionCount: Int
+    var id: Int { weekIndex }
 }
 
 private struct DailyNLevelPoint: Identifiable {
@@ -37,7 +33,7 @@ struct StatisticsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showClearConfirmation = false
     @State private var exportStatusMessage = ""
-    @State private var selectedChartTab: StatisticsChartTab = .nLevel
+    @State private var selectedChartTab: StatisticsChartTab = .daily
 
     private static let csvTimestampFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -58,27 +54,6 @@ struct StatisticsView: View {
         game.statisticsHistory.sorted { $0.completedAt < $1.completedAt }
     }
 
-    private var rawScoreChartPoints: [RawScoreChartPoint] {
-        var points: [RawScoreChartPoint] = []
-        points.reserveCapacity(sortedSessions.count * 2)
-        for (index, session) in sortedSessions.enumerated() {
-            let sessionIndex = index + 1
-            points.append(.init(
-                id: "\(session.id.uuidString)-\(StreamSeries.visual.rawValue)",
-                sessionIndex: sessionIndex,
-                accuracy: session.visualAccuracy,
-                series: .visual
-            ))
-            points.append(.init(
-                id: "\(session.id.uuidString)-\(StreamSeries.audio.rawValue)",
-                sessionIndex: sessionIndex,
-                accuracy: session.audioAccuracy,
-                series: .audio
-            ))
-        }
-        return points
-    }
-
     private var dailyNLevelPoints: [DailyNLevelPoint] {
         let calendar = Calendar.autoupdatingCurrent
         let sessionsByDay = Dictionary(grouping: sortedSessions) { session in
@@ -92,6 +67,24 @@ struct StatisticsView: View {
                 day: day,
                 averageNLevel: totalNLevel / Double(daySessions.count),
                 sessionCount: daySessions.count
+            )
+        }
+    }
+
+    private var weeklyNLevelPoints: [WeeklyNLevelPoint] {
+        let calendar = Calendar.autoupdatingCurrent
+        let sessionsByWeek = Dictionary(grouping: sortedSessions) { session in
+            calendar.dateInterval(of: .weekOfYear, for: session.completedAt)?.start
+                ?? calendar.startOfDay(for: session.completedAt)
+        }
+        return sessionsByWeek.keys.sorted().enumerated().compactMap { offset, weekStart in
+            guard let weekSessions = sessionsByWeek[weekStart], !weekSessions.isEmpty else { return nil }
+            let total = weekSessions.reduce(0.0) { $0 + Double($1.endN) }
+            return WeeklyNLevelPoint(
+                weekIndex: offset + 1,
+                weekStart: weekStart,
+                averageNLevel: total / Double(weekSessions.count),
+                sessionCount: weekSessions.count
             )
         }
     }
@@ -118,22 +111,42 @@ struct StatisticsView: View {
 
     private var nLevelAxisMarks: [Int] {
         guard !dailyNLevelPoints.isEmpty else { return [] }
-
         let desiredLabelCount = min(max(dailyNLevelPoints.count, 2), 7)
         let step = max(1, Int(ceil(Double(dailyNLevelPoints.count - 1) / Double(max(desiredLabelCount - 1, 1)))))
-
         var indices = Array(stride(from: 1, through: dailyNLevelPoints.count, by: step))
-        if indices.last != dailyNLevelPoints.count {
-            indices.append(dailyNLevelPoints.count)
-        }
+        if indices.last != dailyNLevelPoints.count { indices.append(dailyNLevelPoints.count) }
         return indices
     }
 
     private func dayLabel(for index: Int) -> String {
-        guard let point = dailyNLevelPoints.first(where: { $0.dayIndex == index }) else {
-            return ""
-        }
+        guard let point = dailyNLevelPoints.first(where: { $0.dayIndex == index }) else { return "" }
         return point.day.formatted(.dateTime.month(.abbreviated).day())
+    }
+
+    private var weeklyNLevelChartDomain: ClosedRange<Double> {
+        guard
+            let minValue = weeklyNLevelPoints.map(\.averageNLevel).min(),
+            let maxValue = weeklyNLevelPoints.map(\.averageNLevel).max()
+        else {
+            return 1.0...2.0
+        }
+        let lower = max(1.0, floor((minValue - 0.5) * 2.0) / 2.0)
+        let upper = max(lower + 1.0, ceil((maxValue + 0.5) * 2.0) / 2.0)
+        return lower...upper
+    }
+
+    private var weeklyAxisMarks: [Int] {
+        guard !weeklyNLevelPoints.isEmpty else { return [] }
+        let desiredLabelCount = min(max(weeklyNLevelPoints.count, 2), 7)
+        let step = max(1, Int(ceil(Double(weeklyNLevelPoints.count - 1) / Double(max(desiredLabelCount - 1, 1)))))
+        var indices = Array(stride(from: 1, through: weeklyNLevelPoints.count, by: step))
+        if indices.last != weeklyNLevelPoints.count { indices.append(weeklyNLevelPoints.count) }
+        return indices
+    }
+
+    private func weekLabel(for index: Int) -> String {
+        guard let point = weeklyNLevelPoints.first(where: { $0.weekIndex == index }) else { return "" }
+        return point.weekStart.formatted(.dateTime.month(.abbreviated).day())
     }
 
     var body: some View {
@@ -159,10 +172,10 @@ struct StatisticsView: View {
             } else {
                 Group {
                     switch selectedChartTab {
-                    case .rawScores:
-                        rawScoresChart
-                    case .nLevel:
+                    case .daily:
                         nLevelChart
+                    case .weekly:
+                        weeklyNLevelChart
                     }
                 }
 
@@ -235,42 +248,6 @@ struct StatisticsView: View {
         }
     }
 
-    private var rawScoresChart: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Chart {
-                ForEach(rawScoreChartPoints) { point in
-                    LineMark(
-                        x: .value("Session", point.sessionIndex),
-                        y: .value("Accuracy", point.accuracy),
-                        series: .value("Stream", point.series.rawValue)
-                    )
-                    .foregroundStyle(by: .value("Stream", point.series.rawValue))
-                }
-
-                ForEach(rawScoreChartPoints) { point in
-                    PointMark(
-                        x: .value("Session", point.sessionIndex),
-                        y: .value("Accuracy", point.accuracy)
-                    )
-                    .foregroundStyle(by: .value("Stream", point.series.rawValue))
-                }
-            }
-            .chartForegroundStyleScale([
-                StreamSeries.visual.rawValue: Color.blue,
-                StreamSeries.audio.rawValue: Color.green,
-            ])
-            .chartYScale(domain: 0...100)
-            .chartLegend(position: .top, alignment: .leading)
-            .frame(height: 220)
-
-            Text("Per-session visual and auditory accuracy for each completed run.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-        }
-        .frame(height: chartSectionHeight, alignment: .top)
-    }
-
     private var nLevelChart: some View {
         VStack(alignment: .leading, spacing: 8) {
             Chart {
@@ -280,6 +257,7 @@ struct StatisticsView: View {
                         y: .value("Average N-Level", point.averageNLevel)
                     )
                     .foregroundStyle(.orange)
+                    .interpolationMethod(.catmullRom)
 
                     PointMark(
                         x: .value("Day", point.dayIndex),
@@ -312,7 +290,57 @@ struct StatisticsView: View {
             }
             .frame(height: 220)
 
-            Text("Daily average of the N-level reached by the end of each session. Two sessions that finish at N=3 and N=4 on the same day plot as 3.5.")
+            Text("Daily average N-level reached by the end of each session.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(height: chartSectionHeight, alignment: .top)
+    }
+
+    private var weeklyNLevelChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Chart {
+                ForEach(weeklyNLevelPoints) { point in
+                    LineMark(
+                        x: .value("Week", point.weekIndex),
+                        y: .value("Average N-Level", point.averageNLevel)
+                    )
+                    .foregroundStyle(.purple)
+                    .interpolationMethod(.catmullRom)
+
+                    PointMark(
+                        x: .value("Week", point.weekIndex),
+                        y: .value("Average N-Level", point.averageNLevel)
+                    )
+                    .foregroundStyle(.purple)
+                    .annotation(position: .top, alignment: .center) {
+                        if point.sessionCount > 1 {
+                            Text("\(point.sessionCount)x")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .chartYScale(domain: weeklyNLevelChartDomain)
+            .chartXAxis {
+                AxisMarks(values: weeklyAxisMarks) { value in
+                    AxisGridLine()
+                    AxisTick()
+                    AxisValueLabel {
+                        if let index = value.as(Int.self) {
+                            Text(weekLabel(for: index))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading)
+            }
+            .frame(height: 220)
+
+            Text("Weekly average N-level. Each point is the mean end-N across all sessions in that week.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
