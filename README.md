@@ -1,7 +1,5 @@
 # Dual N-Back
 
-![Dual N-Back](docs/screenshots/latest/main.png)
-
 A native macOS and iOS dual n-back cognitive training app.
 
 ## 🧠 Features
@@ -21,6 +19,17 @@ A native macOS and iOS dual n-back cognitive training app.
 | Main | Statistics | Settings |
 |------|------------|----------|
 | ![Main](docs/screenshots/latest/main.png) | ![Statistics](docs/screenshots/latest/stats.png) | ![Settings](docs/screenshots/latest/settings.png) |
+
+## 🎮 How to play
+
+Each trial highlights one grid square and plays a spoken letter. You compare the current trial to the one `N` steps back.
+
+- `F` — visual match (same position as N trials ago)
+- `J` — auditory match (same letter as N trials ago)
+- Both keys — if both match
+- Neither — no response needed for non-matches
+
+The app tracks hits, misses, and false positives per stream and adjusts N after each session.
 
 ## 📲 Install
 
@@ -67,17 +76,6 @@ If that happens:
 - Or go to **System Settings → Privacy & Security → Open Anyway**.
 
 Use official GitHub Release assets only — verify checksums before running.
-
-## 🎮 How to play
-
-Each trial highlights one grid square and plays a spoken letter. You compare the current trial to the one `N` steps back.
-
-- `F` — visual match (same position as N trials ago)
-- `J` — auditory match (same letter as N trials ago)
-- Both keys — if both match
-- Neither — no response needed for non-matches
-
-The app tracks hits, misses, and false positives per stream and adjusts N after each session.
 
 ## 🛠️ Build from source
 
