@@ -18,7 +18,18 @@ A native macOS and iOS dual n-back cognitive training app.
 
 | Main | Statistics | Settings |
 |------|------------|----------|
-| ![Main](docs/screenshots/latest/main.png) | ![Statistics](docs/screenshots/latest/stats.png) | ![Settings](docs/screenshots/latest/settings.png) |
+| <img src="docs/screenshots/latest/main.png" height="280"> | <img src="docs/screenshots/latest/stats.png" height="280"> | <img src="docs/screenshots/latest/settings.png" height="280"> |
+
+## 📱 iPhone app & cross-device sync
+
+The iOS version is the same training experience on your iPhone — same grid, same adaptive difficulty, same session history. All data stays local on each device (no account, no cloud).
+
+**Cross-device sync** lets you merge your session history between Mac and iPhone using Universal Clipboard:
+
+1. On one device, open **Statistics → Copy Stats to Clipboard**.
+2. On the other device, open **Statistics → Paste Stats from Clipboard**.
+
+The paste merges the incoming sessions with your local history, deduplicating any overlap. It works in both directions. Universal Clipboard requires both devices to be signed into the same Apple ID and within Bluetooth/Wi-Fi range.
 
 ## 🎮 How to play
 

@@ -8,6 +8,15 @@ struct SettingsView: View {
     @Binding var atAppOpenResumeLastLevel: Bool
     @Binding var atAppOpenStartLevel: Int
 
+    private var appBuildDate: String? {
+        guard let url = Bundle.main.executableURL,
+              let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let date = attrs[.modificationDate] as? Date else { return nil }
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, yyyy"
+        return f.string(from: date)
+    }
+
     private let presetColors: [Color] = [
         Color(red: 0.98, green: 0.62, blue: 0.33), // warm peach
         Color(red: 0.37, green: 0.70, blue: 0.94), // soft sky
@@ -77,17 +86,35 @@ struct SettingsView: View {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(Color.gray.opacity(0.5), lineWidth: 1)
                 )
-            HStack {
-                if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
-                    Text("Version \(version)")
+            Divider()
+
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Dual N-Back by Eric Weinhoffer")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                            Text("Version \(version)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let updated = appBuildDate {
+                            Text("·")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Text("Updated \(updated)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 Spacer()
                 Button("Done") {
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
+                .focusable(false)
             }
         }
         .padding(24)

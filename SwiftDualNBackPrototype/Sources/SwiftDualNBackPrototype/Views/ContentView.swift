@@ -30,17 +30,21 @@ struct ContentView: View {
 
             HStack(spacing: 18) {
                 Stepper("N: \(game.nLevel)", value: $game.nLevel, in: 1...8)
+                    .focusable(false)
                 Text("Trials this session: \(game.totalTrials)")
                     .font(.callout)
                 Button("Help") {
                     showHelp = true
                 }
+                .focusable(false)
                 Button("Settings") {
                     showSettings = true
                 }
+                .focusable(false)
                 Button("Statistics") {
                     openWindow(id: "statistics")
                 }
+                .focusable(false)
             }
 
             VStack(spacing: 8) {
@@ -85,11 +89,13 @@ struct ContentView: View {
                     game.start()
                 }
                 .disabled(game.isRunning || game.isPreparingStart)
+                .focusable(false)
 
                 Button("Stop") {
                     game.stop()
                 }
                 .disabled(!game.isRunning && !game.isPreparingStart)
+                .focusable(false)
             }
 
             HStack(spacing: 12) {
@@ -102,6 +108,7 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(game.visualButtonActive ? .orange : .accentColor)
                 .disabled(!game.buttonsAvailable)
+                .focusable(false)
 
                 Button {
                     game.registerAudioAction()
@@ -112,6 +119,7 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(game.audioButtonActive ? .orange : .accentColor)
                 .disabled(!game.buttonsAvailable)
+                .focusable(false)
             }
 
             if showLiveStatusText && !game.statusText.isEmpty {

@@ -10,6 +10,15 @@ struct SettingsView: View {
     @Binding var atAppOpenResumeLastLevel: Bool
     @Binding var atAppOpenStartLevel: Int
 
+    private var appBuildDate: String? {
+        guard let url = Bundle.main.executableURL,
+              let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let date = attrs[.modificationDate] as? Date else { return nil }
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, yyyy"
+        return f.string(from: date)
+    }
+
     private let presetColors: [(Color, Double, Double, Double)] = [
         (Color(red: 0.98, green: 0.62, blue: 0.33), 0.98, 0.62, 0.33), // warm peach
         (Color(red: 0.37, green: 0.70, blue: 0.94), 0.37, 0.70, 0.94), // soft sky
@@ -90,10 +99,13 @@ struct SettingsView: View {
                         )
                 }
 
-                if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
-                    Section {
-                        Text("Version \(version)")
-                            .foregroundStyle(.secondary)
+                Section("About") {
+                    LabeledContent("Developer", value: "Eric Weinhoffer")
+                    if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                        LabeledContent("Version", value: version)
+                    }
+                    if let updated = appBuildDate {
+                        LabeledContent("Last Updated", value: updated)
                     }
                 }
             }
