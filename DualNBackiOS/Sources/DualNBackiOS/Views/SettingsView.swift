@@ -1,3 +1,4 @@
+import DualNBackCore
 import SwiftUI
 
 struct SettingsView: View {
@@ -44,7 +45,7 @@ struct SettingsView: View {
 
                 Section("Startup Level") {
                     Toggle("Resume at last level", isOn: $atAppOpenResumeLastLevel)
-                    Stepper("Start at level \(atAppOpenStartLevel)", value: $atAppOpenStartLevel, in: 1...8)
+                    Stepper("Start at level \(atAppOpenStartLevel)", value: $atAppOpenStartLevel, in: GameLimits.nLevelRange)
                         .disabled(atAppOpenResumeLastLevel)
                         .opacity(atAppOpenResumeLastLevel ? 0.5 : 1.0)
                 }

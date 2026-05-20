@@ -29,7 +29,7 @@ struct ContentView: View {
                 .font(.title2.bold())
 
             HStack(spacing: 18) {
-                Stepper("N: \(game.nLevel)", value: $game.nLevel, in: 1...8)
+                Stepper("N: \(game.nLevel)", value: $game.nLevel, in: GameLimits.nLevelRange)
                     .focusable(false)
                 Text("Trials this session: \(game.totalTrials)")
                     .font(.callout)
@@ -196,6 +196,6 @@ struct ContentView: View {
     }
 
     private func clampLevel(_ value: Int) -> Int {
-        min(max(value, 1), 8)
+        GameLimits.clampedNLevel(value)
     }
 }

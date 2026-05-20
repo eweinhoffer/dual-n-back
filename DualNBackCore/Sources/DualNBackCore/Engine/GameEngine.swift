@@ -105,7 +105,7 @@ public final class GameEngine: NSObject, ObservableObject {
 
     public func start() {
         if isRunning || isPreparingStart { return }
-        if nLevel < 1 { nLevel = 1 }
+        nLevel = GameLimits.clampedNLevel(nLevel)
 
         #if os(iOS)
         configureAudioSession()
@@ -131,19 +131,27 @@ public final class GameEngine: NSObject, ObservableObject {
         hideTimer = nil
         currentPosition = nil
         awaitingResponseFor = nil
+        visualButtonActive = false
+        audioButtonActive = false
         isRunning = false
         isPreparingStart = false
         countdownValue = nil
     }
 
     public func registerPositionAction() {
-        guard buttonsAvailable, let idx = awaitingResponseFor else { return }
+        guard buttonsAvailable,
+              let idx = awaitingResponseFor,
+              responses.indices.contains(idx),
+              !responses[idx].pos else { return }
         flashVisualButton()
         responses[idx].pos = true
     }
 
     public func registerAudioAction() {
-        guard buttonsAvailable, let idx = awaitingResponseFor else { return }
+        guard buttonsAvailable,
+              let idx = awaitingResponseFor,
+              responses.indices.contains(idx),
+              !responses[idx].aud else { return }
         flashAudioButton()
         responses[idx].aud = true
     }
@@ -172,7 +180,7 @@ public final class GameEngine: NSObject, ObservableObject {
         let result = historyStore.merge(existing: statisticsHistory, incoming: incomingSessions)
         statisticsHistory = result.merged
         if let lastSession = statisticsHistory.last {
-            nLevel = lastSession.endN
+            nLevel = GameLimits.clampedNLevel(lastSession.endN)
         }
         do {
             try historyStore.save(statisticsHistory)
@@ -425,9 +433,9 @@ public final class GameEngine: NSObject, ObservableObject {
 
         let oldN = nLevel
         if averageAccuracy >= 90.0 {
-            nLevel += 1
+            nLevel = GameLimits.clampedNLevel(nLevel + 1)
         } else if averageAccuracy < 75.0 {
-            nLevel = max(1, nLevel - 1)
+            nLevel = GameLimits.clampedNLevel(nLevel - 1)
         }
 
         let session = SessionScore(

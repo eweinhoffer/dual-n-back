@@ -95,12 +95,7 @@ struct ContentView: View {
             )
         }
         .sheet(isPresented: $showStatistics) {
-            StatisticsView(
-                sessions: game.statisticsHistory,
-                onClearStatistics: { game.clearStatisticsHistory() },
-                onCopyStats: { game.copyStatsToClipboard() },
-                onPasteStats: { game.pasteStatsFromClipboard() }
-            )
+            StatisticsView()
         }
         .sheet(isPresented: $game.showResultPopup) {
             resultPopup
@@ -119,7 +114,7 @@ struct ContentView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
-            Stepper("N: \(game.nLevel)", value: $game.nLevel, in: 1...8)
+            Stepper("N: \(game.nLevel)", value: $game.nLevel, in: GameLimits.nLevelRange)
                 .fixedSize()
                 .disabled(game.isRunning || game.isPreparingStart)
         }
@@ -236,6 +231,6 @@ struct ContentView: View {
     }
 
     private func clampLevel(_ value: Int) -> Int {
-        min(max(value, 1), 8)
+        GameLimits.clampedNLevel(value)
     }
 }

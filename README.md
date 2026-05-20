@@ -137,6 +137,11 @@ Output: `Dual N-Back.app` in the repo root.
 - Homebrew cask pins separate `arm64` and `x86_64` hashes per release.
 - Local security scan: `./scripts/security_scan.sh`
 
+## 🧾 Changelog
+
+- `1.1.1`: Aligns Mac and iPhone version labels and improves stats sync/storage reliability.
+- `1.1.0`: First public macOS release.
+
 ## ✍️ Author
 
 Developed by [Eric Weinhoffer](https://www.ericweinhoffer.com)

@@ -22,7 +22,7 @@ targets:
       base:
         PRODUCT_NAME: "Dual N-Back"
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "1.1.0"
+        MARKETING_VERSION: "1.1.1"
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_KEY_CFBundleDisplayName: "Dual N-Back"
         INFOPLIST_KEY_CFBundleName: "Dual N-Back"

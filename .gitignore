@@ -20,5 +20,7 @@ Dual N-Back.app/
 dist/
 
 # Local project context (personal paths, session notes)
+AGENTS.md
 CLAUDE.md
 WORKLOG.md
+**/*.swp

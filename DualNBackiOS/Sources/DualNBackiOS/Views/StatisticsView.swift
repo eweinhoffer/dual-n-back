@@ -28,12 +28,7 @@ private struct DailyNLevelPoint: Identifiable {
 
 struct StatisticsView: View {
     @Environment(\.dismiss) private var dismiss
-    let onClearStatistics: () -> Void
-    let onCopyStats: () -> Int
-    let onPasteStats: () -> GameEngine.PasteResult
-    private let sortedSessions: [SessionScore]
-    private let dailyNLevelPoints: [DailyNLevelPoint]
-    private let weeklyNLevelPoints: [WeeklyNLevelPoint]
+    @EnvironmentObject private var game: GameEngine
     @State private var showClearConfirmation = false
     @State private var selectedChartTab: StatisticsChartTab = .daily
     @State private var csvShareURL: URL? = nil
@@ -54,23 +49,16 @@ struct StatisticsView: View {
         return f
     }()
 
-    init(
-        sessions: [SessionScore],
-        onClearStatistics: @escaping () -> Void,
-        onCopyStats: @escaping () -> Int,
-        onPasteStats: @escaping () -> GameEngine.PasteResult
-    ) {
-        self.onClearStatistics = onClearStatistics
-        self.onCopyStats = onCopyStats
-        self.onPasteStats = onPasteStats
-        self.sortedSessions = sessions.sorted { $0.completedAt < $1.completedAt }
+    private var sortedSessions: [SessionScore] {
+        game.statisticsHistory.sorted { $0.completedAt < $1.completedAt }
+    }
 
+    private var dailyNLevelPoints: [DailyNLevelPoint] {
         let calendar = Calendar.autoupdatingCurrent
-
-        let sessionsByDay = Dictionary(grouping: self.sortedSessions) { session in
+        let sessionsByDay = Dictionary(grouping: sortedSessions) { session in
             calendar.startOfDay(for: session.completedAt)
         }
-        self.dailyNLevelPoints = sessionsByDay.keys.sorted().enumerated().compactMap { offset, day in
+        return sessionsByDay.keys.sorted().enumerated().compactMap { offset, day in
             guard let daySessions = sessionsByDay[day], !daySessions.isEmpty else { return nil }
             let totalNLevel = daySessions.reduce(0.0) { $0 + Double($1.endN) }
             return DailyNLevelPoint(
@@ -80,12 +68,15 @@ struct StatisticsView: View {
                 sessionCount: daySessions.count
             )
         }
+    }
 
-        let sessionsByWeek = Dictionary(grouping: self.sortedSessions) { session in
+    private var weeklyNLevelPoints: [WeeklyNLevelPoint] {
+        let calendar = Calendar.autoupdatingCurrent
+        let sessionsByWeek = Dictionary(grouping: sortedSessions) { session in
             calendar.dateInterval(of: .weekOfYear, for: session.completedAt)?.start
                 ?? calendar.startOfDay(for: session.completedAt)
         }
-        self.weeklyNLevelPoints = sessionsByWeek.keys.sorted().enumerated().compactMap { offset, weekStart in
+        return sessionsByWeek.keys.sorted().enumerated().compactMap { offset, weekStart in
             guard let weekSessions = sessionsByWeek[weekStart], !weekSessions.isEmpty else { return nil }
             let total = weekSessions.reduce(0.0) { $0 + Double($1.endN) }
             return WeeklyNLevelPoint(
@@ -198,7 +189,7 @@ struct StatisticsView: View {
                 .background(.bar)
             }
             .alert("Erase all score history?", isPresented: $showClearConfirmation) {
-                Button("Erase", role: .destructive) { onClearStatistics() }
+                Button("Erase", role: .destructive) { game.clearStatisticsHistory() }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This deletes all saved session scores permanently.")
@@ -361,7 +352,7 @@ struct StatisticsView: View {
     // MARK: - Clipboard Transfer
 
     private func copyStats() {
-        let count = onCopyStats()
+        let count = game.copyStatsToClipboard()
         clipboardStatusMessage = count > 0
             ? "Copied \(count) sessions to clipboard."
             : "No sessions to copy."
@@ -369,21 +360,18 @@ struct StatisticsView: View {
 
     private func pasteStats() {
         clipboardStatusMessage = "Checking clipboard…"
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.5))
-            let result = onPasteStats()
-            switch result {
-            case .success(let newCount, let duplicateCount):
-                if newCount > 0 {
-                    clipboardStatusMessage = "Merged \(newCount) new sessions (\(duplicateCount) duplicates skipped)."
-                } else {
-                    clipboardStatusMessage = "No new sessions found (\(duplicateCount) duplicates skipped)."
-                }
-            case .noData:
-                clipboardStatusMessage = "Nothing on clipboard to paste."
-            case .invalidFormat:
-                clipboardStatusMessage = "Clipboard does not contain valid stats data."
+        let result = game.pasteStatsFromClipboard()
+        switch result {
+        case .success(let newCount, let duplicateCount):
+            if newCount > 0 {
+                clipboardStatusMessage = "Merged \(newCount) new sessions (\(duplicateCount) duplicates skipped)."
+            } else {
+                clipboardStatusMessage = "No new sessions found (\(duplicateCount) duplicates skipped)."
             }
+        case .noData:
+            clipboardStatusMessage = "Nothing on clipboard to paste."
+        case .invalidFormat:
+            clipboardStatusMessage = "Clipboard does not contain valid stats data."
         }
     }
 
@@ -392,8 +380,16 @@ struct StatisticsView: View {
     private func makeCSVFile() -> URL? {
         let csv = makeCSVString()
         let fileName = defaultCSVFilename()
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        guard (try? csv.write(to: url, atomically: true, encoding: .utf8)) != nil else {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DualNBackExports-\(UUID().uuidString)", isDirectory: true)
+        let url = directory.appendingPathComponent(fileName)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try csv.write(to: url, atomically: true, encoding: .utf8)
+            #if os(iOS)
+            try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
+            #endif
+        } catch {
             return nil
         }
         return url

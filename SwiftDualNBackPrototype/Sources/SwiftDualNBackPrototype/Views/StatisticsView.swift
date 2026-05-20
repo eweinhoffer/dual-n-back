@@ -357,21 +357,18 @@ struct StatisticsView: View {
 
     private func pasteStats() {
         exportStatusMessage = "Checking clipboard…"
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.5))
-            let result = game.pasteStatsFromClipboard()
-            switch result {
-            case .success(let newCount, let duplicateCount):
-                if newCount > 0 {
-                    exportStatusMessage = "Merged \(newCount) new sessions (\(duplicateCount) duplicates skipped)."
-                } else {
-                    exportStatusMessage = "No new sessions found (\(duplicateCount) duplicates skipped)."
-                }
-            case .noData:
-                exportStatusMessage = "Nothing on clipboard to paste."
-            case .invalidFormat:
-                exportStatusMessage = "Clipboard does not contain valid stats data."
+        let result = game.pasteStatsFromClipboard()
+        switch result {
+        case .success(let newCount, let duplicateCount):
+            if newCount > 0 {
+                exportStatusMessage = "Merged \(newCount) new sessions (\(duplicateCount) duplicates skipped)."
+            } else {
+                exportStatusMessage = "No new sessions found (\(duplicateCount) duplicates skipped)."
             }
+        case .noData:
+            exportStatusMessage = "Nothing on clipboard to paste."
+        case .invalidFormat:
+            exportStatusMessage = "Clipboard does not contain valid stats data."
         }
     }
 
