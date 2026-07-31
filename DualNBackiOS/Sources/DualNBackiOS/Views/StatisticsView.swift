@@ -3,8 +3,9 @@ import DualNBackCore
 import SwiftUI
 
 private enum StatisticsChartTab: String, CaseIterable, Identifiable {
-    case daily = "Daily Avg"
-    case weekly = "Weekly Avg"
+    case weekly = "Weekly"
+    case monthly = "Monthly"
+    case lifetime = "Lifetime"
 
     var id: String { rawValue }
 }
@@ -17,24 +18,25 @@ private struct WeeklyNLevelPoint: Identifiable {
     var id: Int { weekIndex }
 }
 
-private struct DailyNLevelPoint: Identifiable {
-    let dayIndex: Int
-    let day: Date
+private struct MonthlyNLevelPoint: Identifiable {
+    let monthIndex: Int
+    let monthStart: Date
     let averageNLevel: Double
     let sessionCount: Int
 
-    var id: Int { dayIndex }
+    var id: Int { monthIndex }
 }
 
 struct StatisticsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var game: GameEngine
     @State private var showClearConfirmation = false
-    @State private var selectedChartTab: StatisticsChartTab = .daily
+    @State private var showSyncOptions = false
+    @State private var selectedChartTab: StatisticsChartTab = .weekly
     @State private var csvShareURL: URL? = nil
     @State private var clipboardStatusMessage = ""
-    @State private var selectedDailyIndex: Int? = nil
     @State private var selectedWeeklyIndex: Int? = nil
+    @State private var selectedMonthlyIndex: Int? = nil
 
     private static let csvTimestampFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -49,25 +51,15 @@ struct StatisticsView: View {
         return f
     }()
 
-    private var sortedSessions: [SessionScore] {
-        game.statisticsHistory.sorted { $0.completedAt < $1.completedAt }
-    }
+    private static let monthAxisFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "MMM yy"
+        return f
+    }()
 
-    private var dailyNLevelPoints: [DailyNLevelPoint] {
-        let calendar = Calendar.autoupdatingCurrent
-        let sessionsByDay = Dictionary(grouping: sortedSessions) { session in
-            calendar.startOfDay(for: session.completedAt)
-        }
-        return sessionsByDay.keys.sorted().enumerated().compactMap { offset, day in
-            guard let daySessions = sessionsByDay[day], !daySessions.isEmpty else { return nil }
-            let totalNLevel = daySessions.reduce(0.0) { $0 + Double($1.endN) }
-            return DailyNLevelPoint(
-                dayIndex: offset + 1,
-                day: day,
-                averageNLevel: totalNLevel / Double(daySessions.count),
-                sessionCount: daySessions.count
-            )
-        }
+    private var sortedSessions: [SessionScore] {
+        game.statisticsHistory
     }
 
     private var weeklyNLevelPoints: [WeeklyNLevelPoint] {
@@ -88,11 +80,37 @@ struct StatisticsView: View {
         }
     }
 
+    private var monthlyNLevelPoints: [MonthlyNLevelPoint] {
+        let calendar = Calendar.autoupdatingCurrent
+        let sessionsByMonth = Dictionary(grouping: sortedSessions) { session in
+            calendar.dateInterval(of: .month, for: session.completedAt)?.start
+                ?? calendar.startOfDay(for: session.completedAt)
+        }
+        return sessionsByMonth.keys.sorted().enumerated().compactMap { offset, monthStart in
+            guard let monthSessions = sessionsByMonth[monthStart], !monthSessions.isEmpty else { return nil }
+            let total = monthSessions.reduce(0.0) { $0 + Double($1.endN) }
+            return MonthlyNLevelPoint(
+                monthIndex: offset + 1,
+                monthStart: monthStart,
+                averageNLevel: total / Double(monthSessions.count),
+                sessionCount: monthSessions.count
+            )
+        }
+    }
+
     private var savedStatusText: String {
         guard let lastUpdatedAt = sortedSessions.last?.completedAt else {
             return "No sessions yet."
         }
         return "Last session: \(lastUpdatedAt.formatted(.dateTime.year().month().day().hour().minute()))"
+    }
+
+    private var lifetimeAverageNLevel: Double {
+        average(sortedSessions.map { Double($0.endN) })
+    }
+
+    private var lifetimeAverageAccuracy: Double {
+        average(sortedSessions.map(\.averageAccuracy))
     }
 
     var body: some View {
@@ -111,11 +129,12 @@ struct StatisticsView: View {
 
                         Group {
                             switch selectedChartTab {
-                            case .daily: nLevelChart
                             case .weekly: weeklyNLevelChart
+                            case .monthly: monthlyNLevelChart
+                            case .lifetime: lifetimeStatsView
                             }
                         }
-                        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                     }
 
                     Section("Session History") {
@@ -146,11 +165,13 @@ struct StatisticsView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button("Paste") { pasteStats() }
+                    Button {
+                        showSyncOptions = true
+                    } label: {
+                        Label("Sync", systemImage: "arrow.triangle.2.circlepath")
+                    }
 
                     if !sortedSessions.isEmpty {
-                        Button("Copy") { copyStats() }
-
                         if let shareURL = csvShareURL {
                             ShareLink(item: shareURL) {
                                 Image(systemName: "square.and.arrow.up")
@@ -194,73 +215,13 @@ struct StatisticsView: View {
             } message: {
                 Text("This deletes all saved session scores permanently.")
             }
+            .fullScreenCover(isPresented: $showSyncOptions) {
+                syncOptionsView
+            }
         }
     }
 
     // MARK: - Charts
-
-    private var nLevelChart: some View {
-        let pointCount = dailyNLevelPoints.count
-        let chartWidth = max(280, CGFloat(pointCount) * 36)
-        return VStack(alignment: .leading, spacing: 6) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                Chart {
-                    ForEach(dailyNLevelPoints) { point in
-                        LineMark(
-                            x: .value("Day", point.dayIndex),
-                            y: .value("Average N-Level", point.averageNLevel)
-                        )
-                        .foregroundStyle(.orange)
-                        .interpolationMethod(.catmullRom)
-
-                        PointMark(
-                            x: .value("Day", point.dayIndex),
-                            y: .value("Average N-Level", point.averageNLevel)
-                        )
-                        .foregroundStyle(.orange)
-                        .symbolSize(point.dayIndex == selectedDailyIndex ? 120 : 50)
-                        .annotation(position: .top, alignment: .center) {
-                            if point.sessionCount > 1 {
-                                Text("\(point.sessionCount)x")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-                .chartYScale(domain: dailyNLevelChartDomain)
-                .chartOverlay { proxy in
-                    GeometryReader { geo in
-                        Rectangle().fill(.clear).contentShape(Rectangle())
-                            .gesture(
-                                SpatialTapGesture()
-                                    .onEnded { value in
-                                        let origin = geo[proxy.plotAreaFrame].origin
-                                        let x = value.location.x - origin.x
-                                        if let index = proxy.value(atX: x, as: Int.self) {
-                                            let clamped = min(max(index, 1), dailyNLevelPoints.count)
-                                            selectedDailyIndex = selectedDailyIndex == clamped ? nil : clamped
-                                        }
-                                    }
-                            )
-                    }
-                }
-                .frame(width: chartWidth, height: 200)
-            }
-
-            if let idx = selectedDailyIndex,
-               let point = dailyNLevelPoints.first(where: { $0.dayIndex == idx }) {
-                let sessionNote = point.sessionCount > 1 ? " (\(point.sessionCount) sessions)" : ""
-                Text("\(point.day.formatted(.dateTime.month(.abbreviated).day().year())) · Avg N \(String(format: "%.1f", point.averageNLevel))\(sessionNote)")
-                    .font(.caption)
-                    .foregroundStyle(.primary)
-            } else {
-                Text("Tap a point to see the date.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
 
     private var weeklyNLevelChart: some View {
         let pointCount = weeklyNLevelPoints.count
@@ -325,28 +286,213 @@ struct StatisticsView: View {
         }
     }
 
-    private var dailyNLevelChartDomain: ClosedRange<Double> {
-        guard
-            let minValue = dailyNLevelPoints.map(\.averageNLevel).min(),
-            let maxValue = dailyNLevelPoints.map(\.averageNLevel).max()
-        else {
-            return 1.0...2.0
+    private var monthlyNLevelChart: some View {
+        let pointCount = monthlyNLevelPoints.count
+        return GeometryReader { geometry in
+            let chartWidth = max(geometry.size.width, CGFloat(max(pointCount, 1)) * 72)
+
+            VStack(alignment: .leading, spacing: 6) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Chart {
+                        ForEach(monthlyNLevelPoints) { point in
+                            LineMark(
+                                x: .value("Month", point.monthIndex),
+                                y: .value("Average N-Level", point.averageNLevel)
+                            )
+                            .foregroundStyle(.blue)
+                            .interpolationMethod(.catmullRom)
+
+                            PointMark(
+                                x: .value("Month", point.monthIndex),
+                                y: .value("Average N-Level", point.averageNLevel)
+                            )
+                            .foregroundStyle(.blue)
+                            .symbolSize(point.monthIndex == selectedMonthlyIndex ? 120 : 50)
+                            .annotation(position: .top, alignment: .center) {
+                                if point.sessionCount > 1 {
+                                    Text("\(point.sessionCount)x")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .chartYScale(domain: monthlyNLevelChartDomain)
+                    .chartXAxis {
+                        AxisMarks(values: monthlyAxisMarks) { value in
+                            AxisGridLine()
+                            AxisTick()
+                            AxisValueLabel {
+                                if let index = value.as(Int.self) {
+                                    Text(monthAxisLabel(for: index))
+                                }
+                            }
+                        }
+                    }
+                    .chartYAxis {
+                        AxisMarks(position: .leading)
+                    }
+                    .chartOverlay { proxy in
+                        GeometryReader { geo in
+                            Rectangle().fill(.clear).contentShape(Rectangle())
+                                .gesture(
+                                    SpatialTapGesture()
+                                        .onEnded { value in
+                                            let origin = geo[proxy.plotAreaFrame].origin
+                                            let x = value.location.x - origin.x
+                                            if let index = proxy.value(atX: x, as: Int.self) {
+                                                let clamped = min(max(index, 1), monthlyNLevelPoints.count)
+                                                selectedMonthlyIndex = selectedMonthlyIndex == clamped ? nil : clamped
+                                            }
+                                        }
+                                )
+                        }
+                    }
+                    .frame(width: chartWidth, height: 215)
+                }
+
+                if let idx = selectedMonthlyIndex,
+                   let point = monthlyNLevelPoints.first(where: { $0.monthIndex == idx }) {
+                    let sessionNote = point.sessionCount > 1 ? " (\(point.sessionCount) sessions)" : ""
+                    Text("\(point.monthStart.formatted(.dateTime.month(.wide).year())) · Avg N \(String(format: "%.1f", point.averageNLevel))\(sessionNote)")
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                } else {
+                    Text("Tap a point to see the month.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
-        let lower = max(1.0, floor((minValue - 0.5) * 2) / 2)
-        let upper = max(lower + 1.0, ceil((maxValue + 0.5) * 2) / 2)
-        return lower...upper
+        .frame(height: 245)
+    }
+
+    private var lifetimeStatsView: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                lifetimeStatTile(title: "Games", value: "\(sortedSessions.count)")
+                lifetimeStatTile(title: "Avg N", value: String(format: "%.1f", lifetimeAverageNLevel))
+            }
+            lifetimeStatTile(title: "Avg Accuracy", value: String(format: "%.1f%%", lifetimeAverageAccuracy))
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func lifetimeStatTile(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(.title2, design: .rounded, weight: .bold))
+                .monospacedDigit()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var weeklyNLevelChartDomain: ClosedRange<Double> {
-        guard
-            let minValue = weeklyNLevelPoints.map(\.averageNLevel).min(),
-            let maxValue = weeklyNLevelPoints.map(\.averageNLevel).max()
-        else {
-            return 1.0...2.0
-        }
+        nLevelChartDomain(for: weeklyNLevelPoints.map(\.averageNLevel))
+    }
+
+    private var monthlyNLevelChartDomain: ClosedRange<Double> {
+        nLevelChartDomain(for: monthlyNLevelPoints.map(\.averageNLevel))
+    }
+
+    private var monthlyAxisMarks: [Int] {
+        axisMarks(for: monthlyNLevelPoints.count, maximumLabels: 6)
+    }
+
+    private func monthAxisLabel(for index: Int) -> String {
+        guard let point = monthlyNLevelPoints.first(where: { $0.monthIndex == index }) else { return "" }
+        return Self.monthAxisFormatter.string(from: point.monthStart)
+    }
+
+    private func nLevelChartDomain(for values: [Double]) -> ClosedRange<Double> {
+        guard let minValue = values.min(), let maxValue = values.max() else { return 1.0...2.0 }
         let lower = max(1.0, floor((minValue - 0.5) * 2) / 2)
-        let upper = max(lower + 1.0, ceil((maxValue + 0.5) * 2) / 2)
+        let upper = max(lower + 1.0, ceil((maxValue + 0.75) * 2) / 2)
         return lower...upper
+    }
+
+    private func axisMarks(for pointCount: Int, maximumLabels: Int) -> [Int] {
+        guard pointCount > 0 else { return [] }
+        let desiredLabelCount = min(pointCount, maximumLabels)
+        let step = max(1, Int(ceil(Double(pointCount - 1) / Double(max(desiredLabelCount - 1, 1)))))
+        var indices = Array(stride(from: 1, through: pointCount, by: step))
+        if indices.last != pointCount { indices.append(pointCount) }
+        return indices
+    }
+
+    private func average(_ values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    // MARK: - Sync Options
+
+    private var syncOptionsView: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                syncActionButton(
+                    title: "Copy Stats",
+                    systemImage: "doc.on.doc",
+                    isDisabled: sortedSessions.isEmpty
+                ) {
+                    copyStats()
+                    showSyncOptions = false
+                }
+
+                syncActionButton(title: "Paste Stats", systemImage: "doc.on.clipboard") {
+                    pasteStats()
+                    showSyncOptions = false
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .navigationTitle("Sync")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showSyncOptions = false }
+                }
+            }
+        }
+    }
+
+    private func syncActionButton(
+        title: String,
+        systemImage: String,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: systemImage)
+                    .font(.title3)
+                    .frame(width: 28)
+                Text(title)
+                    .font(.body.weight(.semibold))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.secondary.opacity(0.16), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.45 : 1)
     }
 
     // MARK: - Clipboard Transfer

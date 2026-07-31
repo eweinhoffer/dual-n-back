@@ -13,7 +13,10 @@ let package = Package(
     targets: [
         .target(
             name: "DualNBackCore",
-            path: "Sources/DualNBackCore"
+            path: "Sources/DualNBackCore",
+            resources: [
+                .copy("Resources/Speech"),
+            ]
         ),
     ]
 )

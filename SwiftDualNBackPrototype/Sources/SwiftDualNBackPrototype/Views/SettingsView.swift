@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var game: GameEngine
     @Binding var visualHighlightColor: Color
     @Binding var randomColorEnabled: Bool
     @Binding var showLiveStatusText: Bool
@@ -46,6 +47,28 @@ struct SettingsView: View {
                 Stepper("Start at level \(atAppOpenStartLevel)", value: $atAppOpenStartLevel, in: GameLimits.nLevelRange)
                     .disabled(atAppOpenResumeLastLevel)
                     .opacity(atAppOpenResumeLastLevel ? 0.5 : 1.0)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Spoken voice")
+                    .font(.headline)
+                HStack {
+                    Picker("Voice", selection: $game.speechVoice) {
+                        ForEach(SpeechVoice.allCases) { voice in
+                            Text(voice.displayName).tag(voice)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Button("Preview") {
+                        game.previewSpeechVoice()
+                    }
+                    .disabled(game.isRunning || game.isPreparingStart)
+                    .focusable(false)
+                }
+                Text("Voice recordings are included with the app and work offline.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
             Text("Visual stimulus color")

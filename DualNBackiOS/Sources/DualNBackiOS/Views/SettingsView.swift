@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var game: GameEngine
     @Binding var highlightRed: Double
     @Binding var highlightGreen: Double
     @Binding var highlightBlue: Double
@@ -48,6 +49,23 @@ struct SettingsView: View {
                     Stepper("Start at level \(atAppOpenStartLevel)", value: $atAppOpenStartLevel, in: GameLimits.nLevelRange)
                         .disabled(atAppOpenResumeLastLevel)
                         .opacity(atAppOpenResumeLastLevel ? 0.5 : 1.0)
+                }
+
+                Section("Spoken Voice") {
+                    Picker("Voice", selection: $game.speechVoice) {
+                        ForEach(SpeechVoice.allCases) { voice in
+                            Text(voice.displayName).tag(voice)
+                        }
+                    }
+
+                    Button("Preview Voice") {
+                        game.previewSpeechVoice()
+                    }
+                    .disabled(game.isRunning || game.isPreparingStart)
+
+                    Text("Voice recordings are included with the app and work offline.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Visual Stimulus Color") {

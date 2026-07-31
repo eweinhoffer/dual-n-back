@@ -5,8 +5,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 private enum StatisticsChartTab: String, CaseIterable, Identifiable {
-    case daily = "Daily Avg"
-    case weekly = "Weekly Avg"
+    case weekly = "Weekly"
+    case monthly = "Monthly"
+    case lifetime = "Lifetime"
 
     var id: String { rawValue }
 }
@@ -19,13 +20,13 @@ private struct WeeklyNLevelPoint: Identifiable {
     var id: Int { weekIndex }
 }
 
-private struct DailyNLevelPoint: Identifiable {
-    let dayIndex: Int
-    let day: Date
+private struct MonthlyNLevelPoint: Identifiable {
+    let monthIndex: Int
+    let monthStart: Date
     let averageNLevel: Double
     let sessionCount: Int
 
-    var id: Int { dayIndex }
+    var id: Int { monthIndex }
 }
 
 struct StatisticsView: View {
@@ -33,7 +34,7 @@ struct StatisticsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showClearConfirmation = false
     @State private var exportStatusMessage = ""
-    @State private var selectedChartTab: StatisticsChartTab = .daily
+    @State private var selectedChartTab: StatisticsChartTab = .weekly
 
     private static let csvTimestampFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -51,24 +52,7 @@ struct StatisticsView: View {
     private let chartSectionHeight: CGFloat = 270
 
     private var sortedSessions: [SessionScore] {
-        game.statisticsHistory.sorted { $0.completedAt < $1.completedAt }
-    }
-
-    private var dailyNLevelPoints: [DailyNLevelPoint] {
-        let calendar = Calendar.autoupdatingCurrent
-        let sessionsByDay = Dictionary(grouping: sortedSessions) { session in
-            calendar.startOfDay(for: session.completedAt)
-        }
-        return sessionsByDay.keys.sorted().enumerated().compactMap { offset, day in
-            guard let daySessions = sessionsByDay[day], !daySessions.isEmpty else { return nil }
-            let totalNLevel = daySessions.reduce(0.0) { $0 + Double($1.endN) }
-            return DailyNLevelPoint(
-                dayIndex: offset + 1,
-                day: day,
-                averageNLevel: totalNLevel / Double(daySessions.count),
-                sessionCount: daySessions.count
-            )
-        }
+        game.statisticsHistory
     }
 
     private var weeklyNLevelPoints: [WeeklyNLevelPoint] {
@@ -89,6 +73,24 @@ struct StatisticsView: View {
         }
     }
 
+    private var monthlyNLevelPoints: [MonthlyNLevelPoint] {
+        let calendar = Calendar.autoupdatingCurrent
+        let sessionsByMonth = Dictionary(grouping: sortedSessions) { session in
+            calendar.dateInterval(of: .month, for: session.completedAt)?.start
+                ?? calendar.startOfDay(for: session.completedAt)
+        }
+        return sessionsByMonth.keys.sorted().enumerated().compactMap { offset, monthStart in
+            guard let monthSessions = sessionsByMonth[monthStart], !monthSessions.isEmpty else { return nil }
+            let total = monthSessions.reduce(0.0) { $0 + Double($1.endN) }
+            return MonthlyNLevelPoint(
+                monthIndex: offset + 1,
+                monthStart: monthStart,
+                averageNLevel: total / Double(monthSessions.count),
+                sessionCount: monthSessions.count
+            )
+        }
+    }
+
     private var savedStatusText: String {
         guard let lastUpdatedAt = sortedSessions.last?.completedAt else {
             return "Saved locally, no sessions yet."
@@ -96,31 +98,12 @@ struct StatisticsView: View {
         return "Saved locally, last updated at \(lastUpdatedAt.formatted(.dateTime.year().month().day().hour().minute()))."
     }
 
-    private var nLevelChartDomain: ClosedRange<Double> {
-        guard
-            let minValue = dailyNLevelPoints.map(\.averageNLevel).min(),
-            let maxValue = dailyNLevelPoints.map(\.averageNLevel).max()
-        else {
-            return 1.0...2.0
-        }
-
-        let lowerBound = max(1.0, floor((minValue - 0.5) * 2.0) / 2.0)
-        let upperBound = max(lowerBound + 1.0, ceil((maxValue + 0.5) * 2.0) / 2.0)
-        return lowerBound...upperBound
+    private var lifetimeAverageNLevel: Double {
+        average(sortedSessions.map { Double($0.endN) })
     }
 
-    private var nLevelAxisMarks: [Int] {
-        guard !dailyNLevelPoints.isEmpty else { return [] }
-        let desiredLabelCount = min(max(dailyNLevelPoints.count, 2), 7)
-        let step = max(1, Int(ceil(Double(dailyNLevelPoints.count - 1) / Double(max(desiredLabelCount - 1, 1)))))
-        var indices = Array(stride(from: 1, through: dailyNLevelPoints.count, by: step))
-        if indices.last != dailyNLevelPoints.count { indices.append(dailyNLevelPoints.count) }
-        return indices
-    }
-
-    private func dayLabel(for index: Int) -> String {
-        guard let point = dailyNLevelPoints.first(where: { $0.dayIndex == index }) else { return "" }
-        return point.day.formatted(.dateTime.month(.abbreviated).day())
+    private var lifetimeAverageAccuracy: Double {
+        average(sortedSessions.map(\.averageAccuracy))
     }
 
     private var weeklyNLevelChartDomain: ClosedRange<Double> {
@@ -136,17 +119,47 @@ struct StatisticsView: View {
     }
 
     private var weeklyAxisMarks: [Int] {
-        guard !weeklyNLevelPoints.isEmpty else { return [] }
-        let desiredLabelCount = min(max(weeklyNLevelPoints.count, 2), 7)
-        let step = max(1, Int(ceil(Double(weeklyNLevelPoints.count - 1) / Double(max(desiredLabelCount - 1, 1)))))
-        var indices = Array(stride(from: 1, through: weeklyNLevelPoints.count, by: step))
-        if indices.last != weeklyNLevelPoints.count { indices.append(weeklyNLevelPoints.count) }
-        return indices
+        axisMarks(for: weeklyNLevelPoints.count)
     }
 
     private func weekLabel(for index: Int) -> String {
         guard let point = weeklyNLevelPoints.first(where: { $0.weekIndex == index }) else { return "" }
         return point.weekStart.formatted(.dateTime.month(.abbreviated).day())
+    }
+
+    private var monthlyNLevelChartDomain: ClosedRange<Double> {
+        guard
+            let minValue = monthlyNLevelPoints.map(\.averageNLevel).min(),
+            let maxValue = monthlyNLevelPoints.map(\.averageNLevel).max()
+        else {
+            return 1.0...2.0
+        }
+        let lower = max(1.0, floor((minValue - 0.5) * 2.0) / 2.0)
+        let upper = max(lower + 1.0, ceil((maxValue + 0.5) * 2.0) / 2.0)
+        return lower...upper
+    }
+
+    private var monthlyAxisMarks: [Int] {
+        axisMarks(for: monthlyNLevelPoints.count)
+    }
+
+    private func monthLabel(for index: Int) -> String {
+        guard let point = monthlyNLevelPoints.first(where: { $0.monthIndex == index }) else { return "" }
+        return point.monthStart.formatted(.dateTime.month(.abbreviated).year())
+    }
+
+    private func axisMarks(for pointCount: Int) -> [Int] {
+        guard pointCount > 0 else { return [] }
+        let desiredLabelCount = min(max(pointCount, 2), 7)
+        let step = max(1, Int(ceil(Double(pointCount - 1) / Double(max(desiredLabelCount - 1, 1)))))
+        var indices = Array(stride(from: 1, through: pointCount, by: step))
+        if indices.last != pointCount { indices.append(pointCount) }
+        return indices
+    }
+
+    private func average(_ values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        return values.reduce(0, +) / Double(values.count)
     }
 
     var body: some View {
@@ -172,10 +185,12 @@ struct StatisticsView: View {
             } else {
                 Group {
                     switch selectedChartTab {
-                    case .daily:
-                        nLevelChart
                     case .weekly:
                         weeklyNLevelChart
+                    case .monthly:
+                        monthlyNLevelChart
+                    case .lifetime:
+                        lifetimeStatsView
                     }
                 }
 
@@ -248,56 +263,6 @@ struct StatisticsView: View {
         }
     }
 
-    private var nLevelChart: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Chart {
-                ForEach(dailyNLevelPoints) { point in
-                    LineMark(
-                        x: .value("Day", point.dayIndex),
-                        y: .value("Average N-Level", point.averageNLevel)
-                    )
-                    .foregroundStyle(.orange)
-                    .interpolationMethod(.catmullRom)
-
-                    PointMark(
-                        x: .value("Day", point.dayIndex),
-                        y: .value("Average N-Level", point.averageNLevel)
-                    )
-                    .foregroundStyle(.orange)
-                    .annotation(position: .top, alignment: .center) {
-                        if point.sessionCount > 1 {
-                            Text("\(point.sessionCount)x")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-            .chartYScale(domain: nLevelChartDomain)
-            .chartXAxis {
-                AxisMarks(values: nLevelAxisMarks) { value in
-                    AxisGridLine()
-                    AxisTick()
-                    AxisValueLabel {
-                        if let index = value.as(Int.self) {
-                            Text(dayLabel(for: index))
-                        }
-                    }
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .frame(height: 220)
-
-            Text("Daily average N-level reached by the end of each session.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-        }
-        .frame(height: chartSectionHeight, alignment: .top)
-    }
-
     private var weeklyNLevelChart: some View {
         VStack(alignment: .leading, spacing: 8) {
             Chart {
@@ -346,6 +311,85 @@ struct StatisticsView: View {
                 .lineLimit(2)
         }
         .frame(height: chartSectionHeight, alignment: .top)
+    }
+
+    private var monthlyNLevelChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Chart {
+                ForEach(monthlyNLevelPoints) { point in
+                    LineMark(
+                        x: .value("Month", point.monthIndex),
+                        y: .value("Average N-Level", point.averageNLevel)
+                    )
+                    .foregroundStyle(.blue)
+                    .interpolationMethod(.catmullRom)
+
+                    PointMark(
+                        x: .value("Month", point.monthIndex),
+                        y: .value("Average N-Level", point.averageNLevel)
+                    )
+                    .foregroundStyle(.blue)
+                    .annotation(position: .top, alignment: .center) {
+                        if point.sessionCount > 1 {
+                            Text("\(point.sessionCount)x")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .chartYScale(domain: monthlyNLevelChartDomain)
+            .chartXAxis {
+                AxisMarks(values: monthlyAxisMarks) { value in
+                    AxisGridLine()
+                    AxisTick()
+                    AxisValueLabel {
+                        if let index = value.as(Int.self) {
+                            Text(monthLabel(for: index))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading)
+            }
+            .frame(height: 220)
+
+            Text("Monthly average N-level. Each point is the mean end-N across all sessions in that month.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(height: chartSectionHeight, alignment: .top)
+    }
+
+    private var lifetimeStatsView: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 14) {
+                lifetimeStatTile(title: "Games Played", value: "\(sortedSessions.count)")
+                lifetimeStatTile(title: "Average N-Level", value: String(format: "%.1f", lifetimeAverageNLevel))
+                lifetimeStatTile(title: "Average Accuracy", value: String(format: "%.1f%%", lifetimeAverageAccuracy))
+            }
+
+            Text("Lifetime totals across all saved sessions.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(height: chartSectionHeight, alignment: .center)
+    }
+
+    private func lifetimeStatTile(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .monospacedDigit()
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func copyStats() {

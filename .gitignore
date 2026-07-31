@@ -19,6 +19,9 @@ Dual N-Back.app/
 # Local release workflow scratch output
 dist/
 
+# Local API credentials (never commit)
+.env.local
+
 # Local project context (personal paths, session notes)
 AGENTS.md
 CLAUDE.md

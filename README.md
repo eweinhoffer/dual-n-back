@@ -8,6 +8,7 @@ A native macOS and iOS dual n-back cognitive training app.
 - Press `F` for a visual match, `J` for an auditory match — or use the on-screen buttons.
 - Adaptive difficulty: N moves up after sessions ≥90% accurate, down below 75%.
 - 3-2-1 countdown before each session and match buttons locked during warmup trials.
+- Choose from three natural spoken voices. The recordings ship with the app, so they work offline and no account is needed.
 - Highlight color picker with quick presets and a **Random on Start** option.
 - Statistics window with session history, daily and weekly average N-level charts, and CSV export.
 - Cross-device stats sync via Universal Clipboard (copy on Mac, paste on iPhone, or vice versa).
@@ -70,13 +71,19 @@ Update later with:
 brew update && brew upgrade --cask dual-n-back
 ```
 
-### iOS
+### iPhone — free Apple ID, no App Store needed
 
-The iOS app can be installed without a paid Apple Developer account:
+The project is not on the App Store. You can still install it yourself for free with Xcode and a normal Apple ID; a paid Apple Developer membership is optional.
 
-- **Xcode (free):** Plug in your iPhone, open `DualNBackiOS/DualNBackiOS.xcodeproj`, set Team to your personal Apple ID, and run with `Cmd+R`. Re-deploy every 7 days.
-- **AltStore (free, recommended):** Build an `.ipa` in Xcode, install via [AltStore](https://altstore.io/). Auto re-signs over Wi-Fi every 7 days.
-- **Apple Developer Program ($99/year):** Removes the 7-day limit and enables TestFlight.
+1. Install free [Xcode](https://apps.apple.com/app/xcode/id497799835) on a Mac, then sign in under **Xcode → Settings → Accounts**.
+2. Download this repository, then open `DualNBackiOS/DualNBackiOS.xcodeproj`.
+3. Connect your iPhone with a cable, select it from Xcode’s device menu, then choose your **Personal Team** in **Signing & Capabilities**.
+4. If Xcode says the bundle identifier is unavailable, change it to something unique to you, such as `com.yourname.dualnback`.
+5. Press **Run** (`Cmd+R`). If the iPhone asks, enable **Developer Mode** in **Settings → Privacy & Security**, restart it, then run again.
+
+Free installs expire after 7 days, so reconnect and press **Run** again to renew them; installing over the existing app keeps its local statistics. Free Apple IDs also have a small limit on simultaneously installed development apps. A paid Apple Developer membership removes the 7-day renewal and enables TestFlight, but is not required to use this app yourself.
+
+GitHub Release downloads are currently for macOS only. There is no downloadable iPhone IPA; iPhone installs are built from this source project and signed with your own Apple ID.
 
 ## ⚠️ macOS Gatekeeper
 
@@ -139,6 +146,7 @@ Output: `Dual N-Back.app` in the repo root.
 
 ## 🧾 Changelog
 
+- `1.2.0`: Adds three offline natural voice choices, faster statistics rendering, refreshed iPhone statistics, and installation guidance for free Apple IDs.
 - `1.1.1`: Aligns Mac and iPhone version labels and improves stats sync/storage reliability.
 - `1.1.0`: First public macOS release.
 

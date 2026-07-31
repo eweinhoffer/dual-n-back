@@ -33,6 +33,11 @@ public final class GameEngine: NSObject, ObservableObject {
     @Published public var visualButtonActive = false
     @Published public var audioButtonActive = false
     @Published public var countdownValue: Int? = nil
+    @Published public var speechVoice: SpeechVoice = .marin {
+        didSet {
+            UserDefaults.standard.set(speechVoice.rawValue, forKey: Self.speechVoiceDefaultsKey)
+        }
+    }
 
     @Published public var posHits = 0
     @Published public var posMisses = 0
@@ -51,15 +56,28 @@ public final class GameEngine: NSObject, ObservableObject {
     private var countdownWorkItems: [DispatchWorkItem] = []
 
     private let speech = AVSpeechSynthesizer()
+    private var speechPlayers: [String: AVAudioPlayer] = [:]
+    private var activeSpeechPlayer: AVAudioPlayer?
     private let speechRate: Float = 0.47
     private lazy var preferredSpeechVoice: AVSpeechSynthesisVoice? = resolvePreferredVoice()
     private let historyStore = StatisticsStore()
+    private static let speechVoiceDefaultsKey = "speechVoice"
+    private static let bundledSpeechAssetNames = [
+        "letter_b", "letter_f", "letter_h", "letter_j",
+        "letter_k", "letter_l", "letter_q", "letter_r",
+        "countdown_3", "countdown_2", "countdown_1",
+    ]
 
     public override init() {
         super.init()
+        if let storedVoice = UserDefaults.standard.string(forKey: Self.speechVoiceDefaultsKey),
+           let voice = SpeechVoice(rawValue: storedVoice) {
+            speechVoice = voice
+        }
         #if os(iOS)
         configureAudioSession()
         #endif
+        preloadBundledSpeech()
         loadHistory()
     }
 
@@ -68,8 +86,10 @@ public final class GameEngine: NSObject, ObservableObject {
 
     private func configureAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.duckOthers])
-            try AVAudioSession.sharedInstance().setActive(true)
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [.duckOthers])
+            try? session.setPreferredIOBufferDuration(0.005)
+            try session.setActive(true)
         } catch {
             // Non-fatal: speech may not play when the silent switch is on
         }
@@ -126,6 +146,8 @@ public final class GameEngine: NSObject, ObservableObject {
         cycleTimer?.invalidate()
         hideTimer?.invalidate()
         clearCountdown()
+        activeSpeechPlayer?.stop()
+        activeSpeechPlayer = nil
         speech.stopSpeaking(at: .immediate)
         cycleTimer = nil
         hideTimer = nil
@@ -340,11 +362,67 @@ public final class GameEngine: NSObject, ObservableObject {
     }
 
     private func speakCountdown(_ value: Int) {
-        speakString("\(value)")
+        playBundledSpeech(assetName: "countdown_\(value)", fallbackText: "\(value)")
     }
 
     private func speak(letter: Character) {
-        speakString(String(letter).lowercased())
+        let letterName = String(letter).lowercased()
+        playBundledSpeech(assetName: "letter_\(letterName)", fallbackText: letterName)
+    }
+
+    public func previewSpeechVoice() {
+        guard !isRunning && !isPreparingStart else { return }
+        playBundledSpeech(assetName: "countdown_3", fallbackText: "3")
+    }
+
+    private func playBundledSpeech(assetName: String, fallbackText: String) {
+        let key = speechPlayerKey(voice: speechVoice, assetName: assetName)
+        guard let player = speechPlayers[key] ?? loadSpeechPlayer(
+            voice: speechVoice,
+            assetName: assetName
+        ) else {
+            speakString(fallbackText)
+            return
+        }
+
+        activeSpeechPlayer?.stop()
+        speech.stopSpeaking(at: .immediate)
+        player.currentTime = 0
+        activeSpeechPlayer = player
+        if !player.play() {
+            speakString(fallbackText)
+        }
+    }
+
+    private func preloadBundledSpeech() {
+        for voice in SpeechVoice.allCases {
+            for assetName in Self.bundledSpeechAssetNames {
+                _ = loadSpeechPlayer(voice: voice, assetName: assetName)
+            }
+        }
+    }
+
+    private func loadSpeechPlayer(voice: SpeechVoice, assetName: String) -> AVAudioPlayer? {
+        let key = speechPlayerKey(voice: voice, assetName: assetName)
+        if let existingPlayer = speechPlayers[key] {
+            return existingPlayer
+        }
+
+        guard let url = Bundle.module.url(
+            forResource: assetName,
+            withExtension: "wav",
+            subdirectory: "Speech/\(voice.rawValue)"
+        ), let player = try? AVAudioPlayer(contentsOf: url) else {
+            return nil
+        }
+
+        player.prepareToPlay()
+        speechPlayers[key] = player
+        return player
+    }
+
+    private func speechPlayerKey(voice: SpeechVoice, assetName: String) -> String {
+        "\(voice.rawValue)/\(assetName)"
     }
 
     private func speakString(_ text: String) {
