@@ -25,7 +25,6 @@ struct GameGridView: View {
                                         RoundedRectangle(cornerRadius: 12)
                                             .stroke(Color.gray.opacity(0.45), lineWidth: 1)
                                     )
-                                    .animation(.easeOut(duration: 0.08), value: currentDisplayIndex)
                             }
                         }
                     }

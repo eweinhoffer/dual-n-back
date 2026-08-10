@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var game: GameEngine
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showHelp = false
     @State private var showSettings = false
     @State private var showStatistics = false
@@ -15,7 +16,7 @@ struct ContentView: View {
     @AppStorage("randomColorEnabled") private var randomColorEnabled = false
     @State private var appliedStartupLevel = false
 
-    private let haptic = UIImpactFeedbackGenerator(style: .medium)
+    @State private var haptic = UIImpactFeedbackGenerator(style: .medium)
     private let presetColorsRGB: [(Double, Double, Double)] = [
         (0.98, 0.62, 0.33),
         (0.37, 0.70, 0.94),
@@ -104,6 +105,11 @@ struct ContentView: View {
             applyStartupLevelIfNeeded()
             haptic.prepare()
         }
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase != .active {
+                game.handleAppBecameInactive()
+            }
+        }
     }
 
     // MARK: - Subviews
@@ -153,6 +159,7 @@ struct ContentView: View {
         HStack(spacing: 12) {
             Button {
                 haptic.impactOccurred()
+                haptic.prepare()
                 game.registerPositionAction()
             } label: {
                 VStack(spacing: 6) {
@@ -170,6 +177,7 @@ struct ContentView: View {
 
             Button {
                 haptic.impactOccurred()
+                haptic.prepare()
                 game.registerAudioAction()
             } label: {
                 VStack(spacing: 6) {

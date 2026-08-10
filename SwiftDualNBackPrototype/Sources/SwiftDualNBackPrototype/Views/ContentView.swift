@@ -30,6 +30,7 @@ struct ContentView: View {
 
             HStack(spacing: 18) {
                 Stepper("N: \(game.nLevel)", value: $game.nLevel, in: GameLimits.nLevelRange)
+                    .disabled(game.isRunning || game.isPreparingStart)
                     .focusable(false)
                 Text("Trials this session: \(game.totalTrials)")
                     .font(.callout)

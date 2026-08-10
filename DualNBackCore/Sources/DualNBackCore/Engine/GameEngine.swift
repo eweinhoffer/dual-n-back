@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 
 @MainActor
-public final class GameEngine: NSObject, ObservableObject {
+public final class GameEngine: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private let playableGridIndices = [0, 1, 2, 3, 5, 6, 7, 8]
     private let letterPool: [Character] = Array("BFHJKLQR")
     private lazy var positionAlternatives: [[Int]] = {
@@ -17,9 +17,13 @@ public final class GameEngine: NSObject, ObservableObject {
         })
     }()
 
-    private let stimulusOnSeconds: TimeInterval = 0.5
-    private let cycleSeconds: TimeInterval = 3.0
-    private let countdownStartDelaySeconds: TimeInterval = 3.5
+    private let stimulusOnDuration = Duration.milliseconds(500)
+    private let cycleDuration = Duration.seconds(3)
+    private let countdownStartDelay = Duration.milliseconds(3_500)
+    // Longer routes can still have a previously queued countdown sound in
+    // flight when the next one must be scheduled. AirPlay is intentionally
+    // rejected; common speaker, wired, and Bluetooth routes remain supported.
+    private let maximumUsableOutputLatency: TimeInterval = 0.350
 
     @Published public var nLevel: Int = 2
     @Published public var isRunning = false
@@ -51,23 +55,21 @@ public final class GameEngine: NSObject, ObservableObject {
     private var responses: [(pos: Bool, aud: Bool)] = []
     private var awaitingResponseFor: Int? = nil
 
-    private var cycleTimer: Timer?
-    private var hideTimer: Timer?
-    private var countdownWorkItems: [DispatchWorkItem] = []
+    private var timelineTask: Task<Void, Never>?
+    private var stimulusHideTask: Task<Void, Never>?
+    private var visualButtonFeedbackTask: Task<Void, Never>?
+    private var audioButtonFeedbackTask: Task<Void, Never>?
 
     private let speech = AVSpeechSynthesizer()
     private var speechPlayers: [String: AVAudioPlayer] = [:]
-    private var activeSpeechPlayer: AVAudioPlayer?
+    private var activeSpeechPlayers: Set<AVAudioPlayer> = []
+    #if os(macOS)
+    private lazy var audioLatencyProbeEngine = AVAudioEngine()
+    #endif
     private let speechRate: Float = 0.47
     private lazy var preferredSpeechVoice: AVSpeechSynthesisVoice? = resolvePreferredVoice()
     private let historyStore = StatisticsStore()
     private static let speechVoiceDefaultsKey = "speechVoice"
-    private static let bundledSpeechAssetNames = [
-        "letter_b", "letter_f", "letter_h", "letter_j",
-        "letter_k", "letter_l", "letter_q", "letter_r",
-        "countdown_3", "countdown_2", "countdown_1",
-    ]
-
     public override init() {
         super.init()
         if let storedVoice = UserDefaults.standard.string(forKey: Self.speechVoiceDefaultsKey),
@@ -75,38 +77,103 @@ public final class GameEngine: NSObject, ObservableObject {
             speechVoice = voice
         }
         #if os(iOS)
-        configureAudioSession()
+        configureAudioSession(activate: false)
         #endif
         preloadBundledSpeech()
         loadHistory()
     }
 
+    deinit {
+        #if os(iOS)
+        if let audioSessionInterruptionObserver {
+            NotificationCenter.default.removeObserver(audioSessionInterruptionObserver)
+        }
+        if let audioRouteChangeObserver {
+            NotificationCenter.default.removeObserver(audioRouteChangeObserver)
+        }
+        #endif
+    }
+
     #if os(iOS)
     private var audioSessionConfigured = false
+    private var audioSessionActive = false
+    private var audioSessionInterruptionObserver: NSObjectProtocol?
+    private var audioRouteChangeObserver: NSObjectProtocol?
 
-    private func configureAudioSession() {
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.duckOthers])
-            try? session.setPreferredIOBufferDuration(0.005)
-            try session.setActive(true)
-        } catch {
-            // Non-fatal: speech may not play when the silent switch is on
-        }
-        guard !audioSessionConfigured else { return }
-        audioSessionConfigured = true
-        NotificationCenter.default.addObserver(
-            forName: AVAudioSession.interruptionNotification,
-            object: nil,
-            queue: .main
-        ) { notification in
-            guard let userInfo = notification.userInfo,
-                  let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-                  let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
-            if type == .ended {
-                try? AVAudioSession.sharedInstance().setActive(true)
+    private func configureAudioSession(activate: Bool) {
+        if audioSessionInterruptionObserver == nil {
+            audioSessionInterruptionObserver = NotificationCenter.default.addObserver(
+                forName: AVAudioSession.interruptionNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                guard let userInfo = notification.userInfo,
+                      let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+                      let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+                Task { @MainActor [weak self] in
+                    if type == .began {
+                        self?.audioSessionActive = false
+                        self?.stopForTimingSafety(
+                            message: "Session stopped because audio was interrupted."
+                        )
+                    }
+                }
             }
         }
+        if audioRouteChangeObserver == nil {
+            audioRouteChangeObserver = NotificationCenter.default.addObserver(
+                forName: AVAudioSession.routeChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                if let reasonValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                   let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue),
+                   reason == .categoryChange {
+                    // Ignore the category change performed by this engine.
+                    return
+                }
+                Task { @MainActor [weak self] in
+                    self?.stopForTimingSafety(
+                        message: "Session stopped because the audio output changed. Start again to resync."
+                    )
+                }
+            }
+        }
+
+        let session = AVAudioSession.sharedInstance()
+        if !audioSessionConfigured {
+            do {
+                try session.setCategory(.playback, mode: .default, options: [.duckOthers])
+                try? session.setPreferredIOBufferDuration(0.005)
+                audioSessionConfigured = true
+            } catch {
+                // Non-fatal. Retry when the user next starts or previews audio.
+                return
+            }
+        }
+
+        guard activate, !audioSessionActive else { return }
+        do {
+            try session.setActive(true)
+            audioSessionActive = true
+        } catch {
+            // Non-fatal: the bundled player can still report whether playback starts.
+        }
+    }
+
+    private func deactivateAudioSession() {
+        guard audioSessionActive else { return }
+        try? AVAudioSession.sharedInstance().setActive(
+            false,
+            options: [.notifyOthersOnDeactivation]
+        )
+        audioSessionActive = false
+    }
+
+    /// A backgrounded game cannot keep visual and auditory stimuli aligned.
+    /// Stop it instead of silently grading an invalid session.
+    public func handleAppBecameInactive() {
+        stopForTimingSafety(message: "Session stopped when the app became inactive.")
     }
     #endif
 
@@ -128,8 +195,17 @@ public final class GameEngine: NSObject, ObservableObject {
         nLevel = GameLimits.clampedNLevel(nLevel)
 
         #if os(iOS)
-        configureAudioSession()
+        configureAudioSession(activate: true)
         #endif
+
+        guard currentOutputLatency <= maximumUsableOutputLatency else {
+            statusText = "This audio output is too delayed for accurate training. Use built-in speakers or wired headphones."
+            #if os(iOS)
+            deactivateAudioSession()
+            #endif
+            return
+        }
+        prepareBundledSpeech(voice: speechVoice)
 
         guard buildTrialPlan() else {
             statusText = "Could not build valid trial plan for this N"
@@ -143,14 +219,17 @@ public final class GameEngine: NSObject, ObservableObject {
     }
 
     public func stop() {
-        cycleTimer?.invalidate()
-        hideTimer?.invalidate()
-        clearCountdown()
-        activeSpeechPlayer?.stop()
-        activeSpeechPlayer = nil
+        timelineTask?.cancel()
+        stimulusHideTask?.cancel()
+        visualButtonFeedbackTask?.cancel()
+        audioButtonFeedbackTask?.cancel()
+        activeSpeechPlayers.forEach { $0.stop() }
+        activeSpeechPlayers.removeAll(keepingCapacity: true)
         speech.stopSpeaking(at: .immediate)
-        cycleTimer = nil
-        hideTimer = nil
+        timelineTask = nil
+        stimulusHideTask = nil
+        visualButtonFeedbackTask = nil
+        audioButtonFeedbackTask = nil
         currentPosition = nil
         awaitingResponseFor = nil
         visualButtonActive = false
@@ -158,6 +237,9 @@ public final class GameEngine: NSObject, ObservableObject {
         isRunning = false
         isPreparingStart = false
         countdownValue = nil
+        #if os(iOS)
+        deactivateAudioSession()
+        #endif
     }
 
     public func registerPositionAction() {
@@ -222,7 +304,7 @@ public final class GameEngine: NSObject, ObservableObject {
         }
     }
 
-    private func runTrial() {
+    private func presentNextTrial() {
         guard isRunning else { return }
 
         if let prev = awaitingResponseFor {
@@ -240,50 +322,168 @@ public final class GameEngine: NSObject, ObservableObject {
         awaitingResponseFor = trialIndex
 
         currentPosition = trial.position
-        speak(letter: trial.letter)
 
         statusText = "Trial \(trialIndex + 1)/\(totalTrials) | N=\(nLevel)"
 
-        hideTimer?.invalidate()
-        hideTimer = Timer.scheduledTimer(withTimeInterval: stimulusOnSeconds, repeats: false) { [weak self] _ in
-            Task { @MainActor in self?.currentPosition = nil }
-        }
+        scheduleStimulusHide(forTrial: trialIndex)
     }
 
     private func beginCountdownAndStart() {
-        clearCountdown()
-
-        let countdown = [3, 2, 1]
-        for (offset, value) in countdown.enumerated() {
-            let item = DispatchWorkItem { [weak self] in
-                guard let self, self.isPreparingStart else { return }
-                self.statusText = "Starting in \(value)..."
-                self.countdownValue = value
-                self.speakCountdown(value)
-            }
-            countdownWorkItems.append(item)
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(offset), execute: item)
+        timelineTask?.cancel()
+        timelineTask = Task { @MainActor [weak self] in
+            await self?.runTimeline()
         }
-
-        let startItem = DispatchWorkItem { [weak self] in
-            guard let self, self.isPreparingStart else { return }
-            self.countdownValue = nil
-            self.isPreparingStart = false
-            self.isRunning = true
-            self.statusText = "Game running."
-            self.runTrial()
-            self.cycleTimer = Timer.scheduledTimer(withTimeInterval: self.cycleSeconds, repeats: true) { [weak self] _ in
-                Task { @MainActor in self?.runTrial() }
-            }
-            self.cycleTimer?.tolerance = 0.02
-        }
-        countdownWorkItems.append(startItem)
-        DispatchQueue.main.asyncAfter(deadline: .now() + countdownStartDelaySeconds, execute: startItem)
     }
 
-    private func clearCountdown() {
-        countdownWorkItems.forEach { $0.cancel() }
-        countdownWorkItems.removeAll()
+    /// Uses absolute monotonic deadlines, so a late callback does not add drift
+    /// to every later trial. Main-queue tasks also continue during UI tracking,
+    /// unlike a default-mode run-loop Timer.
+    private func runTimeline() async {
+        let clock = ContinuousClock()
+        let firstAudioAdvance = audioSchedulingAdvance()
+        guard firstAudioAdvance <= maximumUsableOutputLatency
+                + BundledSpeechTiming.deviceScheduleLeadSeconds
+                + BundledSpeechTiming.spokenLeadSeconds else {
+            stopForExcessiveOutputLatency()
+            return
+        }
+        let countdownAnchor = clock.now.advanced(
+            by: .seconds(firstAudioAdvance + BundledSpeechTiming.schedulingMarginSeconds)
+        )
+
+        for (offset, value) in [3, 2, 1].enumerated() {
+            let presentationDeadline = countdownAnchor.advanced(by: .seconds(offset))
+            guard await scheduleAudio(
+                assetName: "countdown_\(value)",
+                fallbackText: "\(value)",
+                for: presentationDeadline,
+                clock: clock
+            ), isPreparingStart else { return }
+            let visualDeadline = presentationDeadline.advanced(
+                by: .seconds(-BundledSpeechTiming.visualCommitLeadSeconds)
+            )
+            guard await sleep(until: visualDeadline, clock: clock), isPreparingStart else { return }
+            statusText = "Starting in \(value)..."
+            countdownValue = value
+        }
+
+        var nextPresentationDeadline = countdownAnchor.advanced(by: countdownStartDelay)
+        var isFirstTrial = true
+
+        while (isPreparingStart || isRunning) && !Task.isCancelled {
+            let nextIndex = trialIndex + 1
+            if nextIndex < totalTrials {
+                let advance = audioSchedulingAdvance()
+                guard advance <= maximumUsableOutputLatency
+                        + BundledSpeechTiming.deviceScheduleLeadSeconds
+                        + BundledSpeechTiming.spokenLeadSeconds else {
+                    stopForExcessiveOutputLatency()
+                    return
+                }
+
+                let earliestSafeTarget = clock.now.advanced(
+                    by: .seconds(advance + BundledSpeechTiming.schedulingMarginSeconds)
+                )
+                if earliestSafeTarget > nextPresentationDeadline {
+                    // Rebase after a long system stall instead of presenting a
+                    // late sound or bursting two trials close together.
+                    nextPresentationDeadline = earliestSafeTarget
+                }
+
+                let trial = plannedTrials[nextIndex]
+                let letterName = String(trial.letter).lowercased()
+                guard await scheduleAudio(
+                    assetName: "letter_\(letterName)",
+                    fallbackText: letterName,
+                    for: nextPresentationDeadline,
+                    clock: clock
+                ) else { return }
+
+                let visualDeadline = nextPresentationDeadline.advanced(
+                    by: .seconds(-BundledSpeechTiming.visualCommitLeadSeconds)
+                )
+                guard await sleep(until: visualDeadline, clock: clock) else { return }
+
+                if isFirstTrial {
+                    countdownValue = nil
+                    isPreparingStart = false
+                    isRunning = true
+                    statusText = "Game running."
+                    isFirstTrial = false
+                }
+                guard isRunning else { return }
+                presentNextTrial()
+            } else {
+                guard await sleep(until: nextPresentationDeadline, clock: clock) else { return }
+                presentNextTrial()
+                return
+            }
+
+            guard isRunning && !Task.isCancelled else { return }
+            nextPresentationDeadline = nextPresentationDeadline.advanced(by: cycleDuration)
+        }
+    }
+
+    private func scheduleAudio(
+        assetName: String,
+        fallbackText: String,
+        for presentationDeadline: ContinuousClock.Instant,
+        clock: ContinuousClock
+    ) async -> Bool {
+        let advance = audioSchedulingAdvance()
+        guard advance <= maximumUsableOutputLatency
+                + BundledSpeechTiming.deviceScheduleLeadSeconds
+                + BundledSpeechTiming.spokenLeadSeconds else {
+            stopForExcessiveOutputLatency()
+            return false
+        }
+        let audioDeadline = presentationDeadline.advanced(by: .seconds(-advance))
+        guard await sleep(until: audioDeadline, clock: clock) else { return false }
+        playBundledSpeech(assetName: assetName, fallbackText: fallbackText)
+        return true
+    }
+
+    private func audioSchedulingAdvance() -> TimeInterval {
+        currentOutputLatency
+            + BundledSpeechTiming.deviceScheduleLeadSeconds
+            + BundledSpeechTiming.spokenLeadSeconds
+    }
+
+    private var currentOutputLatency: TimeInterval {
+        #if os(iOS)
+        max(0, AVAudioSession.sharedInstance().outputLatency)
+        #else
+        max(0, audioLatencyProbeEngine.outputNode.presentationLatency)
+        #endif
+    }
+
+    private func stopForExcessiveOutputLatency() {
+        stop()
+        statusText = "Session stopped because this audio output became too delayed. Use built-in speakers or wired headphones."
+    }
+
+    private func sleep(until deadline: ContinuousClock.Instant, clock: ContinuousClock) async -> Bool {
+        do {
+            try await clock.sleep(until: deadline, tolerance: .milliseconds(2))
+            return !Task.isCancelled
+        } catch {
+            return false
+        }
+    }
+
+    private func scheduleStimulusHide(forTrial presentedTrialIndex: Int) {
+        stimulusHideTask?.cancel()
+        let hideDelay = stimulusOnDuration
+            + .seconds(BundledSpeechTiming.visualCommitLeadSeconds)
+        stimulusHideTask = Task { @MainActor [weak self, hideDelay] in
+            do {
+                try await ContinuousClock().sleep(for: hideDelay, tolerance: .milliseconds(2))
+            } catch {
+                return
+            }
+            guard let self, self.trialIndex == presentedTrialIndex else { return }
+            self.currentPosition = nil
+        }
     }
 
     private func buildTrialPlan() -> Bool {
@@ -340,6 +540,8 @@ public final class GameEngine: NSObject, ObservableObject {
     }
 
     private func prepareSessionForStart() {
+        timelineTask?.cancel()
+        stimulusHideTask?.cancel()
         isRunning = false
         isPreparingStart = true
         showResultPopup = false
@@ -361,21 +563,17 @@ public final class GameEngine: NSObject, ObservableObject {
         audFalse = 0
     }
 
-    private func speakCountdown(_ value: Int) {
-        playBundledSpeech(assetName: "countdown_\(value)", fallbackText: "\(value)")
-    }
-
-    private func speak(letter: Character) {
-        let letterName = String(letter).lowercased()
-        playBundledSpeech(assetName: "letter_\(letterName)", fallbackText: letterName)
-    }
-
     public func previewSpeechVoice() {
         guard !isRunning && !isPreparingStart else { return }
+        #if os(iOS)
+        configureAudioSession(activate: true)
+        #endif
         playBundledSpeech(assetName: "countdown_3", fallbackText: "3")
     }
 
     private func playBundledSpeech(assetName: String, fallbackText: String) {
+        speech.stopSpeaking(at: .immediate)
+
         let key = speechPlayerKey(voice: speechVoice, assetName: assetName)
         guard let player = speechPlayers[key] ?? loadSpeechPlayer(
             voice: speechVoice,
@@ -385,20 +583,37 @@ public final class GameEngine: NSObject, ObservableObject {
             return
         }
 
-        activeSpeechPlayer?.stop()
-        speech.stopSpeaking(at: .immediate)
-        player.currentTime = 0
-        activeSpeechPlayer = player
-        if !player.play() {
+        let calibratedOffset = BundledSpeechTiming.startOffset(
+            voice: speechVoice,
+            assetName: assetName
+        )
+        if activeSpeechPlayers.remove(player) != nil {
+            player.stop()
+            player.prepareToPlay()
+        }
+        player.currentTime = min(calibratedOffset, max(0, player.duration - 0.05))
+        activeSpeechPlayers.insert(player)
+        let presentationTime = player.deviceCurrentTime + BundledSpeechTiming.deviceScheduleLeadSeconds
+        if !player.play(atTime: presentationTime) {
+            activeSpeechPlayers.remove(player)
             speakString(fallbackText)
         }
     }
 
     private func preloadBundledSpeech() {
+        assert(
+            BundledSpeechTiming.calibratedClipCount
+                == SpeechVoice.allCases.count * BundledSpeechTiming.assetNames.count,
+            "Every bundled speech clip needs an onset calibration."
+        )
         for voice in SpeechVoice.allCases {
-            for assetName in Self.bundledSpeechAssetNames {
-                _ = loadSpeechPlayer(voice: voice, assetName: assetName)
-            }
+            prepareBundledSpeech(voice: voice)
+        }
+    }
+
+    private func prepareBundledSpeech(voice: SpeechVoice) {
+        for assetName in BundledSpeechTiming.assetNames {
+            loadSpeechPlayer(voice: voice, assetName: assetName)?.prepareToPlay()
         }
     }
 
@@ -408,17 +623,29 @@ public final class GameEngine: NSObject, ObservableObject {
             return existingPlayer
         }
 
-        guard let url = Bundle.module.url(
-            forResource: assetName,
-            withExtension: "wav",
-            subdirectory: "Speech/\(voice.rawValue)"
-        ), let player = try? AVAudioPlayer(contentsOf: url) else {
+        guard let url = BundledSpeechTiming.resourceURL(voice: voice, assetName: assetName),
+              let player = try? AVAudioPlayer(contentsOf: url) else {
             return nil
         }
 
         player.prepareToPlay()
+        player.delegate = self
         speechPlayers[key] = player
         return player
+    }
+
+    nonisolated public func audioPlayerDidFinishPlaying(
+        _ player: AVAudioPlayer,
+        successfully flag: Bool
+    ) {
+        Task { @MainActor [weak self] in
+            guard let self, self.activeSpeechPlayers.remove(player) != nil else { return }
+            #if os(iOS)
+            if self.activeSpeechPlayers.isEmpty && !self.isRunning && !self.isPreparingStart {
+                self.deactivateAudioSession()
+            }
+            #endif
+        }
     }
 
     private func speechPlayerKey(voice: SpeechVoice, assetName: String) -> String {
@@ -466,17 +693,29 @@ public final class GameEngine: NSObject, ObservableObject {
     }
 
     private func flashVisualButton() {
+        visualButtonFeedbackTask?.cancel()
         visualButtonActive = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+        visualButtonFeedbackTask = Task { @MainActor [weak self] in
+            try? await ContinuousClock().sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
             self?.visualButtonActive = false
         }
     }
 
     private func flashAudioButton() {
+        audioButtonFeedbackTask?.cancel()
         audioButtonActive = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+        audioButtonFeedbackTask = Task { @MainActor [weak self] in
+            try? await ContinuousClock().sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
             self?.audioButtonActive = false
         }
+    }
+
+    private func stopForTimingSafety(message: String) {
+        guard isRunning || isPreparingStart else { return }
+        stop()
+        statusText = message
     }
 
     private func grade(trial idx: Int) {

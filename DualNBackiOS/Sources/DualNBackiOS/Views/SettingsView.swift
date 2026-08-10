@@ -12,13 +12,17 @@ struct SettingsView: View {
     @Binding var atAppOpenResumeLastLevel: Bool
     @Binding var atAppOpenStartLevel: Int
 
+    private static let buildDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter
+    }()
+
     private var appBuildDate: String? {
         guard let url = Bundle.main.executableURL,
               let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
               let date = attrs[.modificationDate] as? Date else { return nil }
-        let f = DateFormatter()
-        f.dateFormat = "MMM d, yyyy"
-        return f.string(from: date)
+        return Self.buildDateFormatter.string(from: date)
     }
 
     private let presetColors: [(Color, Double, Double, Double)] = [

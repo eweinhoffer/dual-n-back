@@ -18,5 +18,9 @@ let package = Package(
                 .copy("Resources/Speech"),
             ]
         ),
+        .testTarget(
+            name: "DualNBackCoreTests",
+            dependencies: ["DualNBackCore"]
+        ),
     ]
 )
