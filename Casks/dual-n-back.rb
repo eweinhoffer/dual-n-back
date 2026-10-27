@@ -10,16 +10,17 @@ cask "dual-n-back" do
   desc "Dual n-back working memory training app for macOS"
   homepage "https://github.com/eweinhoffer/dual-n-back"
 
+  deprecate! date: "2026-10-26", because: :discontinued
+
   livecheck do
-    url :homepage
-    regex(/^v?(\d+(?:\.\d+)*(?:[-.][0-9A-Za-z]+)?)$/i)
-    strategy :github_latest
+    skip "The macOS app is retired; 1.2.0 is the final release."
   end
 
   app "Dual N-Back.app"
 
   caveats <<~EOS
-    This cask currently installs an unsigned app bundle.
+    The macOS app is retired and no longer receives updates or support.
+    This cask installs the final unsigned 1.2.0 release.
     On first launch, macOS Gatekeeper may block it.
     If blocked, right-click the app and choose Open.
   EOS

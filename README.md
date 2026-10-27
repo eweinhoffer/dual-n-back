@@ -1,6 +1,8 @@
 # Dual N-Back
 
-A native macOS and iOS dual n-back cognitive training app.
+A native iPhone dual n-back cognitive training app.
+
+The macOS app is retired as of October 26, 2026. Future development focuses on iPhone. Existing Mac downloads and source remain available, but no further Mac releases or Homebrew updates are planned.
 
 ## 🧠 Features
 
@@ -45,31 +47,9 @@ The app tracks hits, misses, and false positives per stream and adjusts N after 
 
 ## 📲 Install
 
-### macOS — GitHub Releases
+### macOS — archived downloads
 
-1. Go to the [latest release](https://github.com/eweinhoffer/dual-n-back/releases/latest).
-2. Find your architecture: run `uname -m` — `arm64` = Apple Silicon, `x86_64` = Intel.
-3. Download the matching ZIP:
-   - `Dual-N-Back-macOS-unsigned-arm64.zip`
-   - `Dual-N-Back-macOS-unsigned-x86_64.zip`
-4. Download `SHA256SUMS.txt` and verify:
-   ```bash
-   shasum -a 256 -c SHA256SUMS.txt
-   ```
-5. Unzip and move `Dual N-Back.app` to `/Applications`.
-
-### macOS — Homebrew
-
-```bash
-brew tap eweinhoffer/dual-n-back https://github.com/eweinhoffer/dual-n-back
-brew install --cask dual-n-back
-```
-
-Update later with:
-
-```bash
-brew update && brew upgrade --cask dual-n-back
-```
+The final Mac release is [1.2.0](https://github.com/eweinhoffer/dual-n-back/releases/tag/v1.2.0). Its unsigned ZIPs and checksums remain available for Apple Silicon and Intel Macs. These downloads are unsupported; the Homebrew cask is deprecated and release/install-test automation has been removed.
 
 ### iPhone — free Apple ID, no App Store needed
 
@@ -95,7 +75,7 @@ If that happens:
 
 Use official GitHub Release assets only — verify checksums before running.
 
-## 🛠️ Build from source
+## 🛠️ Source projects
 
 ### Requirements
 
@@ -108,7 +88,7 @@ sudo xcodebuild -runFirstLaunch
 sudo xcodebuild -license accept
 ```
 
-### Build
+### Build the retired Mac app from source
 
 ```bash
 ./BUILD_DOCK_APP.command
@@ -141,7 +121,6 @@ Output: `Dual N-Back.app` in the repo root.
 
 - Release ZIPs include `SHA256SUMS.txt` for checksum verification.
 - Optional release signatures via `SHA256SUMS.txt.sig` and `release-signing-public.pem`.
-- Homebrew cask pins separate `arm64` and `x86_64` hashes per release.
 - Local security scan: `./scripts/security_scan.sh`
 
 ## 🧾 Changelog
